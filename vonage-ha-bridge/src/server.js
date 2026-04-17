@@ -363,6 +363,7 @@ async function sendSms({ to, text }) {
     );
   }
 
+  console.log("[SMS] sent", result.data);
   return result.data;
 }
 
@@ -479,6 +480,7 @@ async function handleInboundSms(request, response) {
 
     const from = normalizePhoneNumber(payload.msisdn ?? payload.from ?? "");
     const text = sanitizeSmsText(payload.text);
+    console.log("[SMS] inbound", { from, text });
 
     if (!from || !text) {
       response.status(200).json({ ok: true });
@@ -508,6 +510,7 @@ async function handleInboundSms(request, response) {
       replyText = "Error communicating with Home Assistant.";
     }
 
+    console.log("[SMS] replying", { to: from, replyText });
     await sendSms({
       to: from,
       text: replyText,
@@ -515,7 +518,7 @@ async function handleInboundSms(request, response) {
 
     response.status(200).json({ ok: true });
   } catch (error) {
-    console.error("Inbound SMS handler failed:", error.response?.data ?? error);
+    console.error("[SMS] reply failed", error.response?.data ?? error);
     response.status(500).json({
       error: "Inbound SMS handling failed",
     });
