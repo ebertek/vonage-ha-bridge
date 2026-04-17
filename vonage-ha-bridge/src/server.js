@@ -255,7 +255,7 @@ async function sendSms({ to, text }) {
   const payload = new URLSearchParams({
     api_key: config.vonageApiKey,
     api_secret: config.vonageApiSecret,
-    to,
+    to: normalizePhoneNumber(to),
     from: config.vonageFromNumber,
     text: sanitizeSmsText(text),
   });
@@ -287,7 +287,7 @@ async function createOutboundCall({ to, text }) {
       to: [
         {
           type: "phone",
-          number: to,
+          number: normalizePhoneNumber(to),
         },
       ],
       from: {
