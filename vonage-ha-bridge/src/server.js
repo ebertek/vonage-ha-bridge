@@ -273,6 +273,18 @@ async function sendSms({ to, text }) {
     },
   );
 
+  const message = result.data?.messages?.[0];
+
+  if (!message) {
+    throw new Error("Vonage SMS API returned no message result");
+  }
+
+  if (message.status !== "0") {
+    throw new Error(
+      `Vonage SMS failed with status ${message.status}: ${message["error-text"] ?? "unknown error"}`,
+    );
+  }
+
   return result.data;
 }
 
