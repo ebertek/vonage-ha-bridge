@@ -1,67 +1,70 @@
-import express from 'express';
-import morgan from 'morgan';
-import dotenv from 'dotenv';
-import fs from 'node:fs';
-import crypto from 'node:crypto';
-import axios from 'axios';
-import jwt from 'jsonwebtoken';
+import express from "express";
+import morgan from "morgan";
+import dotenv from "dotenv";
+import fs from "node:fs";
+import crypto from "node:crypto";
+import axios from "axios";
+import jwt from "jsonwebtoken";
 
 dotenv.config();
 
 const app = express();
 
-app.use(morgan('combined'));
+app.use(morgan("combined"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const config = {
-  port: Number.parseInt(process.env.PORT ?? '3000', 10),
-  baseUrl: (process.env.BASE_URL ?? '').replace(/\/$/u, ''),
-  internalApiToken: process.env.INTERNAL_API_TOKEN ?? '',
-  haBaseUrl: (process.env.HA_BASE_URL ?? '').replace(/\/$/u, ''),
-  haToken: process.env.HA_LONG_LIVED_TOKEN ?? '',
+  port: Number.parseInt(process.env.PORT ?? "3000", 10),
+  baseUrl: (process.env.BASE_URL ?? "").replace(/\/$/u, ""),
+  internalApiToken: process.env.INTERNAL_API_TOKEN ?? "",
+  haBaseUrl: (process.env.HA_BASE_URL ?? "").replace(/\/$/u, ""),
+  haToken: process.env.HA_LONG_LIVED_TOKEN ?? "",
   haCallEventWebhookId:
-    process.env.HA_CALL_EVENT_WEBHOOK_ID ?? 'vonage_call_event',
-  haAssistAgentId: process.env.HA_ASSIST_AGENT_ID ?? '',
-  haLanguage: process.env.HA_LANGUAGE ?? 'en',
-  vonageApiKey: process.env.VONAGE_API_KEY ?? '',
-  vonageApiSecret: process.env.VONAGE_API_SECRET ?? '',
-  vonageSignatureSecret: process.env.VONAGE_SIGNATURE_SECRET ?? '',
-  vonageFromNumber: process.env.VONAGE_FROM_NUMBER ?? '',
-  vonageApplicationId: process.env.VONAGE_APPLICATION_ID ?? '',
-  vonagePrivateKeyPath: process.env.VONAGE_PRIVATE_KEY_PATH ?? '',
-  forwardPhoneNumber: process.env.FORWARD_PHONE_NUMBER ?? '',
-  forwardSipUri: process.env.FORWARD_SIP_URI ?? '',
-  allowedSmsSenders: (process.env.ALLOWED_SMS_SENDERS ?? '')
-    .split(',')
+    process.env.HA_CALL_EVENT_WEBHOOK_ID ?? "vonage_call_event",
+  haAssistAgentId: process.env.HA_ASSIST_AGENT_ID ?? "",
+  haLanguage: process.env.HA_LANGUAGE ?? "en",
+  vonageApiKey: process.env.VONAGE_API_KEY ?? "",
+  vonageApiSecret: process.env.VONAGE_API_SECRET ?? "",
+  vonageSignatureSecret: process.env.VONAGE_SIGNATURE_SECRET ?? "",
+  vonageFromNumber: process.env.VONAGE_FROM_NUMBER ?? "",
+  vonageApplicationId: process.env.VONAGE_APPLICATION_ID ?? "",
+  vonagePrivateKeyPath: process.env.VONAGE_PRIVATE_KEY_PATH ?? "",
+  forwardPhoneNumber: process.env.FORWARD_PHONE_NUMBER ?? "",
+  forwardSipUri: process.env.FORWARD_SIP_URI ?? "",
+  allowedSmsSenders: (process.env.ALLOWED_SMS_SENDERS ?? "")
+    .split(",")
     .map((value) => value.trim())
     .filter(Boolean),
-  smsMaxLength: Number.parseInt(process.env.SMS_MAX_LENGTH ?? '1600', 10),
-  assistTimeoutMs: Number.parseInt(process.env.ASSIST_TIMEOUT_MS ?? '30000', 10),
+  smsMaxLength: Number.parseInt(process.env.SMS_MAX_LENGTH ?? "1600", 10),
+  assistTimeoutMs: Number.parseInt(
+    process.env.ASSIST_TIMEOUT_MS ?? "30000",
+    10,
+  ),
   outboundTimeoutMs: Number.parseInt(
-    process.env.OUTBOUND_TIMEOUT_MS ?? '10000',
-    10
+    process.env.OUTBOUND_TIMEOUT_MS ?? "10000",
+    10,
   ),
   validateVonageSmsSignature:
-    (process.env.VALIDATE_VONAGE_SMS_SIGNATURE ?? 'false').toLowerCase() ===
-    'true'
+    (process.env.VALIDATE_VONAGE_SMS_SIGNATURE ?? "false").toLowerCase() ===
+    "true",
 };
 
 const http = axios.create({
-  timeout: config.outboundTimeoutMs
+  timeout: config.outboundTimeoutMs,
 });
 
 function assertRequiredConfig() {
   const required = [
-    'BASE_URL',
-    'HA_BASE_URL',
-    'HA_LONG_LIVED_TOKEN',
-    'VONAGE_API_KEY',
-    'VONAGE_API_SECRET',
-    'VONAGE_FROM_NUMBER',
-    'VONAGE_APPLICATION_ID',
-    'VONAGE_PRIVATE_KEY_PATH',
-    'INTERNAL_API_TOKEN'
+    "BASE_URL",
+    "HA_BASE_URL",
+    "HA_LONG_LIVED_TOKEN",
+    "VONAGE_API_KEY",
+    "VONAGE_API_SECRET",
+    "VONAGE_FROM_NUMBER",
+    "VONAGE_APPLICATION_ID",
+    "VONAGE_PRIVATE_KEY_PATH",
+    "INTERNAL_API_TOKEN",
   ];
 
   for (const key of required) {
@@ -74,18 +77,18 @@ function assertRequiredConfig() {
 assertRequiredConfig();
 
 function normalizePhoneNumber(value) {
-  return String(value ?? '').replace(/[^\d]/gu, '');
+  return String(value ?? "").replace(/[^\d]/gu, "");
 }
 
 function sanitizeSmsText(value) {
-  return String(value ?? '')
-    .replace(/\s+/gu, ' ')
+  return String(value ?? "")
+    .replace(/\s+/gu, " ")
     .trim()
     .slice(0, config.smsMaxLength);
 }
 
 function loadPrivateKey() {
-  return fs.readFileSync(config.vonagePrivateKeyPath, 'utf8');
+  return fs.readFileSync(config.vonagePrivateKeyPath, "utf8");
 }
 
 function createVonageJwt() {
@@ -97,16 +100,16 @@ function createVonageJwt() {
       application_id: config.vonageApplicationId,
       iat: now,
       exp: now + 60,
-      jti: crypto.randomUUID()
+      jti: crypto.randomUUID(),
     },
     privateKey,
     {
-      algorithm: 'RS256',
+      algorithm: "RS256",
       header: {
-        typ: 'JWT',
-        alg: 'RS256'
-      }
-    }
+        typ: "JWT",
+        alg: "RS256",
+      },
+    },
   );
 }
 
@@ -118,15 +121,15 @@ function isAuthorizedSender(msisdn) {
   const normalizedSender = normalizePhoneNumber(msisdn);
 
   return config.allowedSmsSenders.some(
-    (allowed) => normalizePhoneNumber(allowed) === normalizedSender
+    (allowed) => normalizePhoneNumber(allowed) === normalizedSender,
   );
 }
 
 function requireInternalToken(request, response, next) {
-  const provided = request.header('x-api-token');
+  const provided = request.header("x-api-token");
 
   if (provided !== config.internalApiToken) {
-    response.status(401).json({ error: 'Unauthorized' });
+    response.status(401).json({ error: "Unauthorized" });
     return;
   }
 
@@ -138,7 +141,7 @@ function sortObjectKeys(value) {
     return value.map(sortObjectKeys);
   }
 
-  if (value && typeof value === 'object') {
+  if (value && typeof value === "object") {
     return Object.keys(value)
       .sort()
       .reduce((accumulator, key) => {
@@ -157,7 +160,7 @@ function isValidVonageSmsSignature(request) {
 
   if (!config.vonageSignatureSecret) {
     console.error(
-      'Vonage SMS signature validation enabled, but VONAGE_SIGNATURE_SECRET is missing.'
+      "Vonage SMS signature validation enabled, but VONAGE_SIGNATURE_SECRET is missing.",
     );
     return false;
   }
@@ -165,8 +168,8 @@ function isValidVonageSmsSignature(request) {
   const providedSignature =
     request.body.sig ??
     request.query.sig ??
-    request.header('x-nexmo-signature') ??
-    '';
+    request.header("x-nexmo-signature") ??
+    "";
 
   if (!providedSignature) {
     return false;
@@ -177,22 +180,23 @@ function isValidVonageSmsSignature(request) {
 
   const serialized = Object.entries(sortObjectKeys(payload))
     .map(([key, value]) => `${key}=${value}`)
-    .join('&');
+    .join("&");
 
   const expectedSignature = crypto
-    .createHash('md5')
-    .update(serialized + config.vonageSignatureSecret, 'utf8')
-    .digest('hex');
+    .createHash("md5")
+    .update(serialized + config.vonageSignatureSecret, "utf8")
+    .digest("hex");
 
-  return expectedSignature.toLowerCase() ===
-    String(providedSignature).toLowerCase();
+  return (
+    expectedSignature.toLowerCase() === String(providedSignature).toLowerCase()
+  );
 }
 
 async function callHaConversation({ from, text }) {
   const payload = {
     text,
     language: config.haLanguage,
-    conversation_id: `sms-${normalizePhoneNumber(from)}`
+    conversation_id: `sms-${normalizePhoneNumber(from)}`,
   };
 
   if (config.haAssistAgentId) {
@@ -205,10 +209,10 @@ async function callHaConversation({ from, text }) {
     {
       headers: {
         Authorization: `Bearer ${config.haToken}`,
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json",
       },
-      timeout: config.assistTimeoutMs
-    }
+      timeout: config.assistTimeoutMs,
+    },
   );
 
   return result.data;
@@ -218,7 +222,7 @@ function extractAssistReply(conversationResponse) {
   const candidates = [
     conversationResponse?.response?.speech?.plain?.speech,
     conversationResponse?.response?.speech?.speech,
-    conversationResponse?.response?.text
+    conversationResponse?.response?.text,
   ];
 
   for (const candidate of candidates) {
@@ -228,7 +232,7 @@ function extractAssistReply(conversationResponse) {
     }
   }
 
-  return 'Done.';
+  return "Done.";
 }
 
 async function callHaWebhook(webhookId, payload) {
@@ -238,9 +242,9 @@ async function callHaWebhook(webhookId, payload) {
     {
       headers: {
         Authorization: `Bearer ${config.haToken}`,
-        'Content-Type': 'application/json'
-      }
-    }
+        "Content-Type": "application/json",
+      },
+    },
   );
 
   return result.data;
@@ -252,17 +256,17 @@ async function sendSms({ to, text }) {
     api_secret: config.vonageApiSecret,
     to,
     from: config.vonageFromNumber,
-    text: sanitizeSmsText(text)
+    text: sanitizeSmsText(text),
   });
 
   const result = await http.post(
-    'https://rest.nexmo.com/sms/json',
+    "https://rest.nexmo.com/sms/json",
     payload.toString(),
     {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    }
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    },
   );
 
   return result.data;
@@ -271,31 +275,33 @@ async function sendSms({ to, text }) {
 async function createOutboundCall({ to, text }) {
   const token = createVonageJwt();
   const answerUrl = `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(
-    String(text ?? '').trim().slice(0, 1400)
+    String(text ?? "")
+      .trim()
+      .slice(0, 1400),
   )}`;
 
   const result = await http.post(
-    'https://api.nexmo.com/v1/calls',
+    "https://api.nexmo.com/v1/calls",
     {
       to: [
         {
-          type: 'phone',
-          number: to
-        }
+          type: "phone",
+          number: to,
+        },
       ],
       from: {
-        type: 'phone',
-        number: config.vonageFromNumber
+        type: "phone",
+        number: config.vonageFromNumber,
       },
       answer_url: [answerUrl],
-      event_url: [`${config.baseUrl}/vonage/event`]
+      event_url: [`${config.baseUrl}/vonage/event`],
     },
     {
       headers: {
         Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    }
+        "Content-Type": "application/json",
+      },
+    },
   );
 
   return result.data;
@@ -305,72 +311,72 @@ function buildInboundCallNcco() {
   if (config.forwardSipUri) {
     return [
       {
-        action: 'talk',
-        text: 'Please wait while we connect your call.'
+        action: "talk",
+        text: "Please wait while we connect your call.",
       },
       {
-        action: 'connect',
+        action: "connect",
         endpoint: [
           {
-            type: 'sip',
-            uri: config.forwardSipUri
-          }
-        ]
-      }
+            type: "sip",
+            uri: config.forwardSipUri,
+          },
+        ],
+      },
     ];
   }
 
   if (config.forwardPhoneNumber) {
     return [
       {
-        action: 'talk',
-        text: 'Please wait while we connect your call.'
+        action: "talk",
+        text: "Please wait while we connect your call.",
       },
       {
-        action: 'connect',
+        action: "connect",
         endpoint: [
           {
-            type: 'phone',
-            number: config.forwardPhoneNumber
-          }
-        ]
-      }
+            type: "phone",
+            number: config.forwardPhoneNumber,
+          },
+        ],
+      },
     ];
   }
 
   return [
     {
-      action: 'talk',
-      text: 'No call destination is currently configured.'
-    }
+      action: "talk",
+      text: "No call destination is currently configured.",
+    },
   ];
 }
 
 function buildTalkNcco(text) {
   return [
     {
-      action: 'talk',
-      text: String(text ?? '')
+      action: "talk",
+      text: String(text ?? "")
         .trim()
-        .slice(0, 1400)
-    }
+        .slice(0, 1400),
+    },
   ];
 }
 
-app.get('/health', (request, response) => {
-  response.json({ status: 'ok' });
+app.get("/health", (request, response) => {
+  response.json({ status: "ok" });
 });
 
-app.post('/vonage/sms', async (request, response) => {
+app.post("/vonage/sms", async (request, response) => {
   try {
     if (!isValidVonageSmsSignature(request)) {
-      console.warn('Rejected inbound SMS due to invalid Vonage signature.');
-      response.status(403).json({ error: 'Invalid signature' });
+      console.warn("Rejected inbound SMS due to invalid Vonage signature.");
+      response.status(403).json({ error: "Invalid signature" });
       return;
     }
 
     const payload = request.body;
-    const from = payload.msisdn ?? payload.from ?? '';
+    const from = payload.msisdn ?? payload.from ?? "";
     const text = sanitizeSmsText(payload.text);
 
     if (!from || !text) {
@@ -381,7 +387,7 @@ app.post('/vonage/sms', async (request, response) => {
     if (!isAuthorizedSender(from)) {
       await sendSms({
         to: from,
-        text: 'Unauthorized sender.'
+        text: "Unauthorized sender.",
       });
 
       response.status(200).json({ ok: true });
@@ -395,120 +401,136 @@ app.post('/vonage/sms', async (request, response) => {
       replyText = extractAssistReply(assistResponse);
     } catch (error) {
       console.error(
-        'Home Assistant Assist request failed:',
-        error.response?.data ?? error.message
+        "Home Assistant Assist request failed:",
+        error.response?.data ?? error.message,
       );
-      replyText = 'Error communicating with Home Assistant.';
+      replyText = "Error communicating with Home Assistant.";
     }
 
     await sendSms({
       to: from,
-      text: replyText
+      text: replyText,
     });
 
     response.status(200).json({ ok: true });
   } catch (error) {
-    console.error('Inbound SMS handler failed:', error.response?.data ?? error);
+    console.error("Inbound SMS handler failed:", error.response?.data ?? error);
     response.status(500).json({
-      error: 'Inbound SMS handling failed'
+      error: "Inbound SMS handling failed",
     });
   }
 });
 
-app.get('/vonage/answer', (request, response) => {
+app.get("/vonage/answer", (_request, response) => {
   try {
     response.json(buildInboundCallNcco());
   } catch (error) {
-    console.error('Answer URL failed:', error);
-    response.status(500).json(buildTalkNcco('An internal error occurred.'));
+    console.error("Answer URL failed:", error);
+    response.status(500).json(buildTalkNcco("An internal error occurred."));
   }
 });
 
-app.post('/vonage/answer', (request, response) => {
+app.post("/vonage/answer", (_request, response) => {
   try {
     response.json(buildInboundCallNcco());
   } catch (error) {
-    console.error('Answer URL failed:', error);
-    response.status(500).json(buildTalkNcco('An internal error occurred.'));
+    console.error("Answer URL failed:", error);
+    response.status(500).json(buildTalkNcco("An internal error occurred."));
   }
 });
 
-app.get('/vonage/event', async (request, response) => {
+app.get("/vonage/event", async (request, response) => {
   try {
     await callHaWebhook(config.haCallEventWebhookId, {
-      provider: 'vonage',
-      method: 'GET',
-      payload: request.query
+      provider: "vonage",
+      method: "GET",
+      payload: request.query,
     });
   } catch (error) {
-    console.error('Voice event GET handler failed:', error.response?.data ?? error);
+    console.error(
+      "Voice event GET handler failed:",
+      error.response?.data ?? error,
+    );
   }
 
   response.status(200).json({ ok: true });
 });
 
-app.post('/vonage/event', async (request, response) => {
+app.post("/vonage/event", async (request, response) => {
   try {
     await callHaWebhook(config.haCallEventWebhookId, {
-      provider: 'vonage',
-      method: 'POST',
-      payload: request.body
+      provider: "vonage",
+      method: "POST",
+      payload: request.body,
     });
   } catch (error) {
-    console.error('Voice event POST handler failed:', error.response?.data ?? error);
+    console.error(
+      "Voice event POST handler failed:",
+      error.response?.data ?? error,
+    );
   }
 
   response.status(200).json({ ok: true });
 });
 
-app.get('/ncco/talk', (request, response) => {
+app.get("/ncco/talk", (request, response) => {
   const text =
-    request.query.text ?? 'This is an automated call from Home Assistant.';
+    request.query.text ?? "This is an automated call from Home Assistant.";
   response.json(buildTalkNcco(text));
 });
 
-app.post('/api/send-sms', requireInternalToken, async (request, response) => {
+app.post("/api/send-sms", requireInternalToken, async (request, response) => {
   try {
     const { to, text } = request.body;
 
     if (!to || !text) {
-      response.status(400).json({ error: 'Fields "to" and "text" are required' });
+      response
+        .status(400)
+        .json({ error: 'Fields "to" and "text" are required' });
       return;
     }
 
     const result = await sendSms({ to, text });
     response.json(result);
   } catch (error) {
-    console.error('Outbound SMS failed:', error.response?.data ?? error.message);
+    console.error(
+      "Outbound SMS failed:",
+      error.response?.data ?? error.message,
+    );
     response.status(500).json({
-      error: 'Outbound SMS failed',
-      details: error.response?.data ?? error.message
+      error: "Outbound SMS failed",
+      details: error.response?.data ?? error.message,
     });
   }
 });
 
-app.post('/api/call', requireInternalToken, async (request, response) => {
+app.post("/api/call", requireInternalToken, async (request, response) => {
   try {
     const { to, text } = request.body;
 
     if (!to || !text) {
-      response.status(400).json({ error: 'Fields "to" and "text" are required' });
+      response
+        .status(400)
+        .json({ error: 'Fields "to" and "text" are required' });
       return;
     }
 
     const result = await createOutboundCall({ to, text });
     response.json(result);
   } catch (error) {
-    console.error('Outbound call failed:', error.response?.data ?? error.message);
+    console.error(
+      "Outbound call failed:",
+      error.response?.data ?? error.message,
+    );
     response.status(500).json({
-      error: 'Outbound call failed',
-      details: error.response?.data ?? error.message
+      error: "Outbound call failed",
+      details: error.response?.data ?? error.message,
     });
   }
 });
 
-app.use((request, response) => {
-  response.status(404).json({ error: 'Not found' });
+app.use((_request, response) => {
+  response.status(404).json({ error: "Not found" });
 });
 
 app.listen(config.port, () => {
