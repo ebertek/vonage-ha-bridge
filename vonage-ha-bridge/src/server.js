@@ -14,6 +14,10 @@ app.use(morgan("combined"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+function normalizePhoneNumber(value) {
+  return String(value ?? "").replace(/[^\d]/gu, "");
+}
+
 const config = {
   port: Number.parseInt(process.env.PORT ?? "3000", 10),
   baseUrl: (process.env.BASE_URL ?? "").replace(/\/$/u, ""),
@@ -80,10 +84,6 @@ function assertRequiredConfig() {
 }
 
 assertRequiredConfig();
-
-function normalizePhoneNumber(value) {
-  return String(value ?? "").replace(/[^\d]/gu, "");
-}
 
 function sanitizeSmsText(value) {
   return String(value ?? "")
@@ -207,7 +207,7 @@ async function callHaConversation({ from, text }) {
     payload.agent_id = config.haAssistAgentId;
   }
 
-  const result = await axios.post(
+  const result = await http.post(
     `${config.haBaseUrl}/api/conversation/process`,
     payload,
     {
