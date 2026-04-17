@@ -51,6 +51,22 @@ const config = {
     process.env.OUTBOUND_TIMEOUT_MS ?? "10000",
     10,
   ),
+  outboundSmsRateLimitWindowMs: Number.parseInt(
+    process.env.OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS ?? "15000",
+    10,
+  ),
+  outboundSmsRateLimitMaxRequests: Number.parseInt(
+    process.env.OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS ?? "5",
+    10,
+  ),
+  outboundCallRateLimitWindowMs: Number.parseInt(
+    process.env.OUTBOUND_CALL_RATE_LIMIT_WINDOW_MS ?? "300000",
+    10,
+  ),
+  outboundCallRateLimitMaxRequests: Number.parseInt(
+    process.env.OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS ?? "3",
+    10,
+  ),
   validateVonageSmsSignature:
     (process.env.VALIDATE_VONAGE_SMS_SIGNATURE ?? "false").toLowerCase() ===
     "true",
@@ -63,6 +79,52 @@ if (!config.baseUrl) {
 const http = axios.create({
   timeout: config.outboundTimeoutMs,
 });
+
+const rateLimitStore = new Map();
+
+function createRateLimiter({ windowMs, maxRequests, keyGenerator, label }) {
+  return (request, response, next) => {
+    const now = Date.now();
+    const key = keyGenerator(request);
+    const storeKey = `${label}:${key}`;
+    const entry = rateLimitStore.get(storeKey);
+
+    if (!entry || now > entry.resetAt) {
+      rateLimitStore.set(storeKey, {
+        count: 1,
+        resetAt: now + windowMs,
+      });
+      next();
+      return;
+    }
+
+    if (entry.count >= maxRequests) {
+      const retryAfterSeconds = Math.ceil((entry.resetAt - now) / 1000);
+
+      response.set("Retry-After", String(retryAfterSeconds));
+      response.status(429).json({
+        error: "Too many requests",
+        retry_after_seconds: retryAfterSeconds,
+      });
+      return;
+    }
+
+    entry.count += 1;
+    next();
+  };
+}
+
+function cleanupRateLimitStore() {
+  const now = Date.now();
+
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (now > entry.resetAt) {
+      rateLimitStore.delete(key);
+    }
+  }
+}
+
+setInterval(cleanupRateLimitStore, 60_000).unref();
 
 function assertRequiredConfig() {
   const required = [
@@ -84,6 +146,22 @@ function assertRequiredConfig() {
 }
 
 assertRequiredConfig();
+
+const outboundSmsRateLimiter = createRateLimiter({
+  windowMs: config.outboundSmsRateLimitWindowMs,
+  maxRequests: config.outboundSmsRateLimitMaxRequests,
+  keyGenerator: (request) =>
+    normalizePhoneNumber(request.body?.to ?? "unknown"),
+  label: "outbound-sms",
+});
+
+const outboundCallRateLimiter = createRateLimiter({
+  windowMs: config.outboundCallRateLimitWindowMs,
+  maxRequests: config.outboundCallRateLimitMaxRequests,
+  keyGenerator: (request) =>
+    normalizePhoneNumber(request.body?.to ?? "unknown"),
+  label: "outbound-call",
+});
 
 function sanitizeSmsText(value) {
   return String(value ?? "")
@@ -389,13 +467,6 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
-app.get("/", (_request, response) => {
-  response.json({
-    service: "vonage-ha-bridge",
-    status: "ok",
-  });
-});
-
 async function handleInboundSms(request, response) {
   try {
     if (!isValidVonageSmsSignature(request)) {
@@ -407,7 +478,6 @@ async function handleInboundSms(request, response) {
     const payload = request.method === "GET" ? request.query : request.body;
 
     const from = normalizePhoneNumber(payload.msisdn ?? payload.from ?? "");
-    const _to = normalizePhoneNumber(payload.to ?? "");
     const text = sanitizeSmsText(payload.text);
 
     if (!from || !text) {
@@ -513,55 +583,65 @@ app.get("/ncco/talk", (request, response) => {
   response.json(buildTalkNcco(text));
 });
 
-app.post("/api/send-sms", requireInternalToken, async (request, response) => {
-  try {
-    const { to, text } = request.body;
+app.post(
+  "/api/send-sms",
+  outboundSmsRateLimiter,
+  requireInternalToken,
+  async (request, response) => {
+    try {
+      const { to, text } = request.body;
 
-    if (!to || !text) {
-      response
-        .status(400)
-        .json({ error: 'Fields "to" and "text" are required' });
-      return;
+      if (!to || !text) {
+        response
+          .status(400)
+          .json({ error: 'Fields "to" and "text" are required' });
+        return;
+      }
+
+      const result = await sendSms({ to, text });
+      response.json(result);
+    } catch (error) {
+      console.error(
+        "Outbound SMS failed:",
+        error.response?.data ?? error.message,
+      );
+      response.status(500).json({
+        error: "Outbound SMS failed",
+        details: error.response?.data ?? error.message,
+      });
     }
+  },
+);
 
-    const result = await sendSms({ to, text });
-    response.json(result);
-  } catch (error) {
-    console.error(
-      "Outbound SMS failed:",
-      error.response?.data ?? error.message,
-    );
-    response.status(500).json({
-      error: "Outbound SMS failed",
-      details: error.response?.data ?? error.message,
-    });
-  }
-});
+app.post(
+  "/api/call",
+  outboundCallRateLimiter,
+  requireInternalToken,
+  async (request, response) => {
+    try {
+      const { to, text } = request.body;
 
-app.post("/api/call", requireInternalToken, async (request, response) => {
-  try {
-    const { to, text } = request.body;
+      if (!to || !text) {
+        response
+          .status(400)
+          .json({ error: 'Fields "to" and "text" are required' });
+        return;
+      }
 
-    if (!to || !text) {
-      response
-        .status(400)
-        .json({ error: 'Fields "to" and "text" are required' });
-      return;
+      const result = await createOutboundCall({ to, text });
+      response.json(result);
+    } catch (error) {
+      console.error(
+        "Outbound call failed:",
+        error.response?.data ?? error.message,
+      );
+      response.status(500).json({
+        error: "Outbound call failed",
+        details: error.response?.data ?? error.message,
+      });
     }
-
-    const result = await createOutboundCall({ to, text });
-    response.json(result);
-  } catch (error) {
-    console.error(
-      "Outbound call failed:",
-      error.response?.data ?? error.message,
-    );
-    response.status(500).json({
-      error: "Outbound call failed",
-      details: error.response?.data ?? error.message,
-    });
-  }
-});
+  },
+);
 
 app.use((_request, response) => {
   response.status(404).json({ error: "Not found" });
