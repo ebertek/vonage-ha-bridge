@@ -389,6 +389,13 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
+app.get("/", (_request, response) => {
+  response.json({
+    service: "vonage-ha-bridge",
+    status: "ok",
+  });
+});
+
 async function handleInboundSms(request, response) {
   try {
     if (!isValidVonageSmsSignature(request)) {
