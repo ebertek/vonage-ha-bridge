@@ -27,14 +27,16 @@ const config = {
   vonageApiKey: process.env.VONAGE_API_KEY ?? "",
   vonageApiSecret: process.env.VONAGE_API_SECRET ?? "",
   vonageSignatureSecret: process.env.VONAGE_SIGNATURE_SECRET ?? "",
-  vonageFromNumber: process.env.VONAGE_FROM_NUMBER ?? "",
+  vonageFromNumber: normalizePhoneNumber(process.env.VONAGE_FROM_NUMBER ?? ""),
   vonageApplicationId: process.env.VONAGE_APPLICATION_ID ?? "",
   vonagePrivateKeyPath: process.env.VONAGE_PRIVATE_KEY_PATH ?? "",
-  forwardPhoneNumber: process.env.FORWARD_PHONE_NUMBER ?? "",
+  forwardPhoneNumber: normalizePhoneNumber(
+    process.env.FORWARD_PHONE_NUMBER ?? "",
+  ),
   forwardSipUri: process.env.FORWARD_SIP_URI ?? "",
   allowedSmsSenders: (process.env.ALLOWED_SMS_SENDERS ?? "")
     .split(",")
-    .map((value) => value.trim())
+    .map((value) => normalizePhoneNumber(value.trim()))
     .filter(Boolean),
   smsMaxLength: Number.parseInt(process.env.SMS_MAX_LENGTH ?? "1600", 10),
   assistTimeoutMs: Number.parseInt(
@@ -120,9 +122,7 @@ function isAuthorizedSender(msisdn) {
 
   const normalizedSender = normalizePhoneNumber(msisdn);
 
-  return config.allowedSmsSenders.some(
-    (allowed) => normalizePhoneNumber(allowed) === normalizedSender,
-  );
+  return config.allowedSmsSenders.includes(normalizedSender);
 }
 
 function requireInternalToken(request, response, next) {
