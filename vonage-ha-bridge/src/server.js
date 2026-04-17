@@ -175,7 +175,8 @@ function isValidVonageSmsSignature(request) {
     return false;
   }
 
-  const payload = { ...request.body };
+  const sourcePayload = request.method === "GET" ? request.query : request.body;
+  const payload = { ...sourcePayload };
   delete payload.sig;
 
   const serialized = Object.entries(sortObjectKeys(payload))
