@@ -397,7 +397,8 @@ async function handleInboundSms(request, response) {
 
     const payload = request.method === "GET" ? request.query : request.body;
 
-    const from = payload.msisdn ?? payload.from ?? "";
+    const from = normalizePhoneNumber(payload.msisdn ?? payload.from ?? "");
+    const to = normalizePhoneNumber(payload.to ?? "");
     const text = sanitizeSmsText(payload.text);
 
     if (!from || !text) {
