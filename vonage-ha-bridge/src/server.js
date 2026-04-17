@@ -278,7 +278,7 @@ async function sendSms({ to, text }) {
 
 async function createOutboundCall({ to, text }) {
   if (!config.baseUrl) {
-    throw new Error("BASE_URL is required for outbound calls");
+    throw new Error("BASE_URL is required for outbound calls (voice features disabled)");
   }
 
   const token = createVonageJwt();
