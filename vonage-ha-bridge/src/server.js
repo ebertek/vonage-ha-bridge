@@ -290,7 +290,9 @@ async function sendSms({ to, text }) {
 
 async function createOutboundCall({ to, text }) {
   if (!config.baseUrl) {
-    throw new Error("BASE_URL is required for outbound calls (voice features disabled)");
+    throw new Error(
+      "BASE_URL is required for outbound calls (voice features disabled)",
+    );
   }
 
   const token = createVonageJwt();
@@ -398,7 +400,7 @@ async function handleInboundSms(request, response) {
     const payload = request.method === "GET" ? request.query : request.body;
 
     const from = normalizePhoneNumber(payload.msisdn ?? payload.from ?? "");
-    const to = normalizePhoneNumber(payload.to ?? "");
+    const _to = normalizePhoneNumber(payload.to ?? "");
     const text = sanitizeSmsText(payload.text);
 
     if (!from || !text) {
