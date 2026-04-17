@@ -52,13 +52,16 @@ const config = {
     "true",
 };
 
+if (!config.baseUrl) {
+  console.warn("[config] BASE_URL not set — voice features will not work");
+}
+
 const http = axios.create({
   timeout: config.outboundTimeoutMs,
 });
 
 function assertRequiredConfig() {
   const required = [
-    "BASE_URL",
     "HA_BASE_URL",
     "HA_LONG_LIVED_TOKEN",
     "VONAGE_API_KEY",
@@ -274,6 +277,10 @@ async function sendSms({ to, text }) {
 }
 
 async function createOutboundCall({ to, text }) {
+  if (!config.baseUrl) {
+    throw new Error("BASE_URL is required for outbound calls");
+  }
+
   const token = createVonageJwt();
   const answerUrl = `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(
     String(text ?? "")
