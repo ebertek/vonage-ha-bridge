@@ -363,7 +363,7 @@ function buildTalkNcco(text) {
   ];
 }
 
-app.get("/health", (request, response) => {
+app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
