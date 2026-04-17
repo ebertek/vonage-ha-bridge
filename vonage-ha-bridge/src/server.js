@@ -367,7 +367,7 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
-app.post("/vonage/sms", async (request, response) => {
+async function handleInboundSms(request, response) {
   try {
     if (!isValidVonageSmsSignature(request)) {
       console.warn("Rejected inbound SMS due to invalid Vonage signature.");
@@ -375,7 +375,8 @@ app.post("/vonage/sms", async (request, response) => {
       return;
     }
 
-    const payload = request.body;
+    const payload = request.method === "GET" ? request.query : request.body;
+
     const from = payload.msisdn ?? payload.from ?? "";
     const text = sanitizeSmsText(payload.text);
 
@@ -419,7 +420,10 @@ app.post("/vonage/sms", async (request, response) => {
       error: "Inbound SMS handling failed",
     });
   }
-});
+}
+
+app.get("/vonage/sms", handleInboundSms);
+app.post("/vonage/sms", handleInboundSms);
 
 app.get("/vonage/answer", (_request, response) => {
   try {
