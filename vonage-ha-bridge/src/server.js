@@ -316,6 +316,15 @@ async function createOutboundCall({ to, text }) {
 }
 
 function buildInboundCallNcco() {
+  if (!config.forwardSipUri && !config.forwardPhoneNumber) {
+    return [
+      {
+        action: "talk",
+        text: "No call destination is currently configured.",
+      },
+    ];
+  }
+
   if (config.forwardSipUri) {
     return [
       {
@@ -334,28 +343,19 @@ function buildInboundCallNcco() {
     ];
   }
 
-  if (config.forwardPhoneNumber) {
-    return [
-      {
-        action: "talk",
-        text: "Please wait while we connect your call.",
-      },
-      {
-        action: "connect",
-        endpoint: [
-          {
-            type: "phone",
-            number: config.forwardPhoneNumber,
-          },
-        ],
-      },
-    ];
-  }
-
   return [
     {
       action: "talk",
-      text: "No call destination is currently configured.",
+      text: "Please wait while we connect your call.",
+    },
+    {
+      action: "connect",
+      endpoint: [
+        {
+          type: "phone",
+          number: config.forwardPhoneNumber,
+        },
+      ],
     },
   ];
 }
