@@ -502,7 +502,10 @@ async function handleInboundSms(request, response) {
 
     response.status(200).json({ ok: true });
   } catch (error) {
-    console.error("[SMS] reply failed", error.response?.data ?? error);
+    console.error(
+      "[SMS] inbound handler failed",
+      error.response?.data ?? error,
+    );
     response.status(500).json({
       error: "Inbound SMS handling failed",
     });
