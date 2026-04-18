@@ -2,7 +2,6 @@ import express from "express";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import fs from "node:fs";
-import crypto from "node:crypto";
 import axios from "axios";
 import jwt from "jsonwebtoken";
 import { Vonage } from "@vonage/server-sdk";
@@ -262,12 +261,20 @@ function isValidVonageSmsSignature(request) {
   console.log("[SMS] signature value", sig);
   console.log("[SMS] full params", params);
 
-  return vonage.sms.verifySignature(
-    sig,
-    params,
-    config.vonageSignatureSecret,
-    config.vonageSignatureAlgorithm,
-  );
+  try {
+    return vonage.sms.verifySignature(
+      sig,
+      params,
+      config.vonageSignatureSecret,
+      config.vonageSignatureAlgorithm,
+    );
+  } catch (error) {
+    console.error(
+      "[SMS] signature verification threw",
+      error?.message ?? error,
+    );
+    return false;
+  }
 }
 
 async function callHaConversation({ from, text }) {
