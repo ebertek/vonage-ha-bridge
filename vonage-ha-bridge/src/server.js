@@ -4,7 +4,6 @@ import dotenv from "dotenv";
 import fs from "node:fs";
 import axios from "axios";
 import jwt from "jsonwebtoken";
-import { Vonage } from "@vonage/server-sdk";
 
 dotenv.config();
 
@@ -83,10 +82,7 @@ const http = axios.create({
   timeout: config.outboundTimeoutMs,
 });
 
-const vonage = new Vonage({
-  apiKey: config.vonageApiKey,
-  apiSecret: config.vonageApiSecret,
-});
+const { Vonage } = require('@vonage/server-sdk');
 
 console.log("[SDK] Vonage static keys", Object.keys(Vonage ?? {}));
 console.log("[SDK] vonage instance keys", Object.keys(vonage ?? {}));
@@ -262,7 +258,7 @@ function isValidVonageSmsSignature(request) {
   console.log("[SMS] full params", params);
 
   try {
-    return vonage.sms.verifySignature(
+    return Vonage.sms.verifySignature(
       sig,
       params,
       config.vonageSignatureSecret,
