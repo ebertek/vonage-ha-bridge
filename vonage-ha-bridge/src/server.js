@@ -30,6 +30,7 @@ const config = {
   haSmsDlrWebhookId: process.env.HA_SMS_DLR_WEBHOOK_ID ?? "vonage_sms_dlr",
   haAssistAgentId: process.env.HA_ASSIST_AGENT_ID ?? "",
   haLanguage: process.env.HA_LANGUAGE ?? "en",
+  version: process.env.APP_VERSION ?? "dev",
   vonageApiKey: process.env.VONAGE_API_KEY ?? "",
   vonageApiSecret: process.env.VONAGE_API_SECRET ?? "",
   vonageSignatureSecret: process.env.VONAGE_SIGNATURE_SECRET ?? "",
@@ -474,9 +475,9 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
-app.get("/version", (_req, res) => {
-  res.json({
-    version: process.env.APP_VERSION ?? "dev",
+app.get("/version", (_request, response) => {
+  response.json({
+    version: config.version,
   });
 });
 
@@ -689,5 +690,5 @@ app.use((_request, response) => {
 });
 
 app.listen(config.port, () => {
-  console.log(`Vonage HA bridge listening on port ${config.port}`);
+  console.log(`Vonage HA bridge v${config.version} listening on port ${config.port}`);
 });
