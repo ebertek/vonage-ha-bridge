@@ -475,11 +475,7 @@ async function handleInboundSms(request, response) {
     }
 
     if (!isAuthorizedSender(from)) {
-      await sendSms({
-        to: from,
-        text: "Unauthorized sender.",
-      });
-
+      console.warn("[SMS] unauthorized sender", { from });
       response.status(200).json({ ok: true });
       return;
     }
