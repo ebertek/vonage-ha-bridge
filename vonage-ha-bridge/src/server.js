@@ -83,6 +83,15 @@ const http = axios.create({
   timeout: config.outboundTimeoutMs,
 });
 
+const vonage = new Vonage({
+  apiKey: config.vonageApiKey,
+  apiSecret: config.vonageApiSecret,
+});
+
+console.log("[SDK] Vonage static keys", Object.keys(Vonage ?? {}));
+console.log("[SDK] vonage instance keys", Object.keys(vonage ?? {}));
+console.log("[SDK] vonage.sms keys", Object.keys(vonage?.sms ?? {}));
+
 const rateLimitStore = new Map();
 
 function createRateLimiter({ windowMs, maxRequests, keyGenerator, label }) {
@@ -252,7 +261,7 @@ function isValidVonageSmsSignature(request) {
   console.log("[SMS] signature value", sig);
   console.log("[SMS] full params", params);
 
-  return Vonage.sms.verifySignature(
+  return vonage.sms.verifySignature(
     sig,
     params,
     config.vonageSignatureSecret,
