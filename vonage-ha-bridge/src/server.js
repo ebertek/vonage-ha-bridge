@@ -697,5 +697,7 @@ app.use((_request, response) => {
 });
 
 app.listen(config.port, () => {
-  console.log(`Vonage HA bridge v${config.version} listening on port ${config.port}`);
+  console.log(
+    `Vonage HA bridge v${config.version} listening on port ${config.port}`,
+  );
 });
