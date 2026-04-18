@@ -2,6 +2,7 @@ import express from "express";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import axios from "axios";
 import jwt from "jsonwebtoken";
 
@@ -32,7 +33,9 @@ const config = {
   vonageApiKey: process.env.VONAGE_API_KEY ?? "",
   vonageApiSecret: process.env.VONAGE_API_SECRET ?? "",
   vonageSignatureSecret: process.env.VONAGE_SIGNATURE_SECRET ?? "",
-  vonageSignatureAlgorithm: process.env.VONAGE_SIGNATURE_ALGORITHM ?? "md5hash",
+  vonageSignatureAlgorithm: (
+    process.env.VONAGE_SIGNATURE_ALGORITHM ?? "md5hash"
+  ).toLowerCase(),
   vonageFromNumber: normalizePhoneNumber(process.env.VONAGE_FROM_NUMBER ?? ""),
   vonageApplicationId: process.env.VONAGE_APPLICATION_ID ?? "",
   vonagePrivateKeyPath: process.env.VONAGE_PRIVATE_KEY_PATH ?? "",
@@ -81,12 +84,6 @@ if (!config.baseUrl) {
 const http = axios.create({
   timeout: config.outboundTimeoutMs,
 });
-
-const { Vonage } = require('@vonage/server-sdk');
-
-console.log("[SDK] Vonage static keys", Object.keys(Vonage ?? {}));
-console.log("[SDK] vonage instance keys", Object.keys(vonage ?? {}));
-console.log("[SDK] vonage.sms keys", Object.keys(vonage?.sms ?? {}));
 
 const rateLimitStore = new Map();
 
@@ -225,6 +222,51 @@ function requireInternalToken(request, response, next) {
   next();
 }
 
+function sanitizeSignatureValue(value) {
+  return String(value ?? "").replace(/[&=]/gu, "_");
+}
+
+function buildVonageSignatureBaseString(params) {
+  return Object.entries(params)
+    .filter(([key]) => key !== "sig")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `&${key}=${sanitizeSignatureValue(value)}`)
+    .join("");
+}
+
+function verifyVonageMd5HashSignature(sig, params, secret) {
+  const base = buildVonageSignatureBaseString(params);
+  const expected = crypto
+    .createHash("md5")
+    .update(`${base}${secret}`, "utf8")
+    .digest("hex");
+
+  return expected.toLowerCase() === String(sig).toLowerCase();
+}
+
+function verifyVonageHmacSignature(sig, params, secret, algorithm) {
+  const algoMap = {
+    md5: "md5",
+    sha1: "sha1",
+    sha256: "sha256",
+    sha512: "sha512",
+  };
+
+  const nodeAlgorithm = algoMap[algorithm];
+
+  if (!nodeAlgorithm) {
+    throw new Error(`Unsupported HMAC algorithm: ${algorithm}`);
+  }
+
+  const base = buildVonageSignatureBaseString(params);
+  const expected = crypto
+    .createHmac(nodeAlgorithm, secret)
+    .update(base, "utf8")
+    .digest("hex");
+
+  return expected.toLowerCase() === String(sig).toLowerCase();
+}
+
 function isValidVonageSmsSignature(request) {
   if (!config.validateVonageSmsSignature) {
     return true;
@@ -258,7 +300,15 @@ function isValidVonageSmsSignature(request) {
   console.log("[SMS] full params", params);
 
   try {
-    return Vonage.sms.verifySignature(
+    if (config.vonageSignatureAlgorithm === "md5hash") {
+      return verifyVonageMd5HashSignature(
+        sig,
+        params,
+        config.vonageSignatureSecret,
+      );
+    }
+
+    return verifyVonageHmacSignature(
       sig,
       params,
       config.vonageSignatureSecret,
