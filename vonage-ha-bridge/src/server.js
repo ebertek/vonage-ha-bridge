@@ -27,6 +27,7 @@ const config = {
   haToken: process.env.HA_LONG_LIVED_TOKEN ?? "",
   haCallEventWebhookId:
     process.env.HA_CALL_EVENT_WEBHOOK_ID ?? "vonage_call_event",
+  haSmsDlrWebhookId: process.env.HA_SMS_DLR_WEBHOOK_ID ?? "vonage_sms_dlr",
   haAssistAgentId: process.env.HA_ASSIST_AGENT_ID ?? "",
   haLanguage: process.env.HA_LANGUAGE ?? "en",
   vonageApiKey: process.env.VONAGE_API_KEY ?? "",
@@ -314,7 +315,7 @@ async function callHaWebhook(webhookId, payload) {
   return result.data;
 }
 
-async function sendSms({ to, text }) {
+async function sendSms({ to, text, clientRef }) {
   const payload = new URLSearchParams({
     api_key: config.vonageApiKey,
     api_secret: config.vonageApiSecret,
@@ -322,6 +323,10 @@ async function sendSms({ to, text }) {
     from: config.vonageFromNumber,
     text: sanitizeSmsText(text),
   });
+
+  if (clientRef) {
+    payload.append("client-ref", String(clientRef).slice(0, 40));
+  }
 
   const result = await http.post(
     "https://rest.nexmo.com/sms/json",
@@ -496,6 +501,7 @@ async function handleInboundSms(request, response) {
     await sendSms({
       to: from,
       text: replyText,
+      clientRef: `inbound-reply-${Date.now()}`,
     });
 
     response.status(200).json({ ok: true });
@@ -507,8 +513,34 @@ async function handleInboundSms(request, response) {
   }
 }
 
+async function handleSmsDlr(request, response) {
+  try {
+    const payload = request.method === "GET" ? request.query : request.body;
+
+    console.log("[SMS] dlr", payload);
+
+    await callHaWebhook(config.haSmsDlrWebhookId, {
+      provider: "vonage",
+      type: "sms_dlr",
+      method: request.method,
+      payload,
+    });
+
+    response.status(200).json({ ok: true });
+  } catch (error) {
+    console.error(
+      "[SMS] DLR handler failed:",
+      error.response?.data ?? error.message ?? error,
+    );
+    response.status(200).json({ ok: true });
+  }
+}
+
 app.get("/vonage/sms", handleInboundSms);
 app.post("/vonage/sms", handleInboundSms);
+
+app.get("/vonage/dlr", handleSmsDlr);
+app.post("/vonage/dlr", handleSmsDlr);
 
 app.get("/vonage/answer", (_request, response) => {
   try {
@@ -574,7 +606,7 @@ app.post(
   requireInternalToken,
   async (request, response) => {
     try {
-      const { to, text } = request.body;
+      const { to, text, clientRef } = request.body;
 
       if (!to || !text) {
         response
@@ -583,7 +615,7 @@ app.post(
         return;
       }
 
-      const result = await sendSms({ to, text });
+      const result = await sendSms({ to, text, clientRef });
       response.json(result);
     } catch (error) {
       console.error(
