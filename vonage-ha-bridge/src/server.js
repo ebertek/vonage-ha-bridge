@@ -451,8 +451,21 @@ function buildTalkNcco(text) {
   ];
 }
 
+app.get("/", (_request, response) => {
+  response.json({
+    service: "vonage-ha-bridge",
+    status: "ok",
+  });
+});
+
 app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
+});
+
+app.get("/version", (_req, res) => {
+  res.json({
+    version: process.env.APP_VERSION ?? "dev",
+  });
 });
 
 async function handleInboundSms(request, response) {
