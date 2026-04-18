@@ -83,11 +83,6 @@ const http = axios.create({
   timeout: config.outboundTimeoutMs,
 });
 
-const vonage = new Vonage({
-  apiKey: config.vonageApiKey,
-  apiSecret: config.vonageApiSecret,
-});
-
 const rateLimitStore = new Map();
 
 function createRateLimiter({ windowMs, maxRequests, keyGenerator, label }) {
