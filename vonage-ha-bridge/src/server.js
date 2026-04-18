@@ -249,7 +249,15 @@ function isValidVonageSmsSignature(request) {
     return false;
   }
 
-  return vonage.sms.verifySignature(
+  console.log("[SMS] signature check", {
+    algorithm: config.vonageSignatureAlgorithm,
+    has_sig: Boolean(sig),
+    keys: Object.keys(params).sort(),
+  });
+  console.log("[SMS] signature value", sig);
+  console.log("[SMS] full params", params);
+
+  return Vonage.sms.verifySignature(
     sig,
     params,
     config.vonageSignatureSecret,
