@@ -26,14 +26,26 @@ A lightweight Node.js bridge between [Vonage](https://www.vonage.com/) (formerly
 
 ## How It Works
 
-```
-Inbound SMS  →  /vonage/sms  →  HA Assist  →  SMS reply back to sender
-Inbound Call →  /vonage/answer  →  NCCO: forward to SIP/phone
-Call Events  →  /vonage/event  →  HA webhook
-SMS DLR      →  /vonage/dlr   →  HA webhook
+```mermaid
+flowchart LR
+    SMS[Inbound SMS] --> SMS_EP[/vonage/sms/]
+    SMS_EP --> HA[HA Assist]
+    HA --> SMS_REPLY[SMS reply to sender]
 
-HA → POST /api/send-sms  →  Vonage SMS API
-HA → POST /api/call      →  Vonage Voice API (outbound call with TTS)
+    CALL[Inbound Call] --> ANSWER_EP[/vonage/answer/]
+    ANSWER_EP --> NCCO[NCCO: forward to SIP/phone]
+
+    EVENTS[Call Events] --> EVENT_EP[/vonage/event/]
+    EVENT_EP --> HA_WEBHOOK1[HA webhook]
+
+    DLR[SMS DLR] --> DLR_EP[/vonage/dlr/]
+    DLR_EP --> HA_WEBHOOK2[HA webhook]
+
+    HA_OUT[Home Assistant] --> SEND_SMS[POST /api/send-sms]
+    SEND_SMS --> VONAGE_SMS[Vonage SMS API]
+
+    HA_OUT --> CALL_API[POST /api/call]
+    CALL_API --> VONAGE_VOICE[Vonage Voice API (TTS call)]
 ```
 
 ---
