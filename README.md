@@ -66,42 +66,42 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 
 ### Required
 
-| Variable | Description |
-|---|---|
-| `HA_BASE_URL` | Home Assistant base URL, e.g. `http://homeassistant.local:8123` |
-| `HA_LONG_LIVED_TOKEN` | Home Assistant long-lived access token |
-| `VONAGE_API_KEY` | Vonage API key |
-| `VONAGE_API_SECRET` | Vonage API secret |
-| `VONAGE_FROM_NUMBER` | Your Vonage number (digits only, e.g. `46701234567`) |
-| `VONAGE_APPLICATION_ID` | Vonage application ID (for Voice/JWT) |
-| `VONAGE_PRIVATE_KEY_PATH` | Path to your Vonage application's private key file |
-| `INTERNAL_API_TOKEN` | A secret token for authenticating calls to `/api/*` endpoints |
+| Variable                  | Description                                                     |
+| ------------------------- | --------------------------------------------------------------- |
+| `HA_BASE_URL`             | Home Assistant base URL, e.g. `http://homeassistant.local:8123` |
+| `HA_LONG_LIVED_TOKEN`     | Home Assistant long-lived access token                          |
+| `VONAGE_API_KEY`          | Vonage API key                                                  |
+| `VONAGE_API_SECRET`       | Vonage API secret                                               |
+| `VONAGE_FROM_NUMBER`      | Your Vonage number (digits only, e.g. `46701234567`)            |
+| `VONAGE_APPLICATION_ID`   | Vonage application ID (for Voice/JWT)                           |
+| `VONAGE_PRIVATE_KEY_PATH` | Path to your Vonage application's private key file              |
+| `INTERNAL_API_TOKEN`      | A secret token for authenticating calls to `/api/*` endpoints   |
 
 ### Optional
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3000` | Port to listen on |
-| `BASE_URL` | _(none)_ | Public base URL of this service (required for voice/outbound calls), e.g. `https://bridge.example.com` |
-| `HA_CALL_EVENT_WEBHOOK_ID` | `vonage_call_event` | HA webhook ID for call events |
-| `HA_SMS_DLR_WEBHOOK_ID` | `vonage_sms_dlr` | HA webhook ID for SMS delivery receipts |
-| `HA_ASSIST_AGENT_ID` | _(none)_ | HA Assist agent ID to use for SMS conversations (uses default if unset) |
-| `HA_LANGUAGE` | `en` | Language code for HA Assist |
-| `FORWARD_PHONE_NUMBER` | _(none)_ | Phone number to forward inbound calls to |
-| `FORWARD_SIP_URI` | _(none)_ | SIP URI to forward inbound calls to (takes priority over phone number) |
-| `ALLOWED_SMS_SENDERS` | _(all allowed)_ | Comma-separated list of phone numbers allowed to send SMS commands |
-| `SMS_MAX_LENGTH` | `1600` | Maximum SMS message length |
-| `ASSIST_TIMEOUT_MS` | `30000` | Timeout for HA Assist requests |
-| `OUTBOUND_TIMEOUT_MS` | `10000` | Timeout for outbound HTTP requests |
-| `VALIDATE_VONAGE_SMS_SIGNATURE` | `false` | Enable Vonage SMS signature verification |
-| `VONAGE_SIGNATURE_SECRET` | _(none)_ | Required if signature validation is enabled |
-| `VONAGE_SIGNATURE_ALGORITHM` | `md5hash` | Signature algorithm: `md5hash`, `md5`, `sha1`, `sha256`, or `sha512` |
-| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS` | `15000` | Rate limit window for outbound SMS (ms) |
-| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS` | `5` | Max outbound SMS requests per window |
-| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_MS` | `300000` | Rate limit window for outbound calls (ms) |
-| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3` | Max outbound call requests per window |
-| `LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warning`, or `error` |
-| `APP_VERSION` | `dev` | Application version string (shown in `/version`) |
+| Variable                                | Default             | Description                                                                                            |
+| --------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `PORT`                                  | `3000`              | Port to listen on                                                                                      |
+| `BASE_URL`                              | _(none)_            | Public base URL of this service (required for voice/outbound calls), e.g. `https://bridge.example.com` |
+| `HA_CALL_EVENT_WEBHOOK_ID`              | `vonage_call_event` | HA webhook ID for call events                                                                          |
+| `HA_SMS_DLR_WEBHOOK_ID`                 | `vonage_sms_dlr`    | HA webhook ID for SMS delivery receipts                                                                |
+| `HA_ASSIST_AGENT_ID`                    | _(none)_            | HA Assist agent ID to use for SMS conversations (uses default if unset)                                |
+| `HA_LANGUAGE`                           | `en`                | Language code for HA Assist                                                                            |
+| `FORWARD_PHONE_NUMBER`                  | _(none)_            | Phone number to forward inbound calls to                                                               |
+| `FORWARD_SIP_URI`                       | _(none)_            | SIP URI to forward inbound calls to (takes priority over phone number)                                 |
+| `ALLOWED_SMS_SENDERS`                   | _(all allowed)_     | Comma-separated list of phone numbers allowed to send SMS commands                                     |
+| `SMS_MAX_LENGTH`                        | `1600`              | Maximum SMS message length                                                                             |
+| `ASSIST_TIMEOUT_MS`                     | `30000`             | Timeout for HA Assist requests                                                                         |
+| `OUTBOUND_TIMEOUT_MS`                   | `10000`             | Timeout for outbound HTTP requests                                                                     |
+| `VALIDATE_VONAGE_SMS_SIGNATURE`         | `false`             | Enable Vonage SMS signature verification                                                               |
+| `VONAGE_SIGNATURE_SECRET`               | _(none)_            | Required if signature validation is enabled                                                            |
+| `VONAGE_SIGNATURE_ALGORITHM`            | `md5hash`           | Signature algorithm: `md5hash`, `md5`, `sha1`, `sha256`, or `sha512`                                   |
+| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3`                 | Max outbound call requests per window                                                                  |
+| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_MS`    | `300000`            | Rate limit window for outbound calls (ms)                                                              |
+| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`                 | Max outbound SMS requests per window                                                                   |
+| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS`     | `15000`             | Rate limit window for outbound SMS (ms)                                                                |
+| `LOG_LEVEL`                             | `info`              | Log level: `debug`, `info`, `warning`, or `error`                                                      |
+| `APP_VERSION`                           | `dev`               | Application version string (shown in `/version`)                                                       |
 
 ---
 
@@ -125,13 +125,13 @@ Logs are emitted as newline-delimited JSON to stdout.
 
 These are called by Vonage and should be configured in your Vonage application dashboard.
 
-| Method | Path | Description |
-|---|---|---|
-| `GET/POST` | `/vonage/sms` | Inbound SMS receiver |
-| `GET/POST` | `/vonage/dlr` | SMS delivery receipt handler |
-| `GET/POST` | `/vonage/answer` | Inbound call answer URL (returns NCCO) |
-| `GET/POST` | `/vonage/event` | Inbound call event URL |
-| `GET` | `/ncco/talk` | Returns a talk NCCO for outbound calls (used internally) |
+| Method     | Path             | Description                                              |
+| ---------- | ---------------- | -------------------------------------------------------- |
+| `GET/POST` | `/vonage/sms`    | Inbound SMS receiver                                     |
+| `GET/POST` | `/vonage/dlr`    | SMS delivery receipt handler                             |
+| `GET/POST` | `/vonage/answer` | Inbound call answer URL (returns NCCO)                   |
+| `GET/POST` | `/vonage/event`  | Inbound call event URL                                   |
+| `GET`      | `/ncco/talk`     | Returns a talk NCCO for outbound calls (used internally) |
 
 ### Internal API Endpoints
 
@@ -142,6 +142,7 @@ These require the `x-api-token` header set to your `INTERNAL_API_TOKEN`.
 Send an outbound SMS.
 
 **Request body:**
+
 ```json
 {
   "to": "46701234567",
@@ -155,6 +156,7 @@ Send an outbound SMS.
 Initiate an outbound phone call with a text-to-speech message.
 
 **Request body:**
+
 ```json
 {
   "to": "46701234567",
@@ -164,11 +166,11 @@ Initiate an outbound phone call with a text-to-speech message.
 
 ### Utility Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/` | Service info |
-| `GET` | `/health` | Health check |
-| `GET` | `/version` | Application version |
+| Method | Path       | Description         |
+| ------ | ---------- | ------------------- |
+| `GET`  | `/`        | Service info        |
+| `GET`  | `/health`  | Health check        |
+| `GET`  | `/version` | Application version |
 
 ---
 
