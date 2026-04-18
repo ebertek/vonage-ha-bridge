@@ -5,6 +5,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import axios from "axios";
 import jwt from "jsonwebtoken";
+import { Vonage } from "@vonage/server-sdk";
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ const config = {
   vonageApiKey: process.env.VONAGE_API_KEY ?? "",
   vonageApiSecret: process.env.VONAGE_API_SECRET ?? "",
   vonageSignatureSecret: process.env.VONAGE_SIGNATURE_SECRET ?? "",
+  vonageSignatureAlgorithm: process.env.VONAGE_SIGNATURE_ALGORITHM ?? "md5hash",
   vonageFromNumber: normalizePhoneNumber(process.env.VONAGE_FROM_NUMBER ?? ""),
   vonageApplicationId: process.env.VONAGE_APPLICATION_ID ?? "",
   vonagePrivateKeyPath: process.env.VONAGE_PRIVATE_KEY_PATH ?? "",
@@ -78,6 +80,11 @@ if (!config.baseUrl) {
 
 const http = axios.create({
   timeout: config.outboundTimeoutMs,
+});
+
+const vonage = new Vonage({
+  apiKey: config.vonageApiKey,
+  apiSecret: config.vonageApiSecret,
 });
 
 const rateLimitStore = new Map();
@@ -217,23 +224,6 @@ function requireInternalToken(request, response, next) {
   next();
 }
 
-function sortObjectKeys(value) {
-  if (Array.isArray(value)) {
-    return value.map(sortObjectKeys);
-  }
-
-  if (value && typeof value === "object") {
-    return Object.keys(value)
-      .sort()
-      .reduce((accumulator, key) => {
-        accumulator[key] = sortObjectKeys(value[key]);
-        return accumulator;
-      }, {});
-  }
-
-  return value;
-}
-
 function isValidVonageSmsSignature(request) {
   if (!config.validateVonageSmsSignature) {
     return true;
@@ -246,31 +236,23 @@ function isValidVonageSmsSignature(request) {
     return false;
   }
 
-  const providedSignature =
-    request.body.sig ??
-    request.query.sig ??
-    request.header("x-nexmo-signature") ??
-    "";
+  const params = {
+    ...request.query,
+    ...request.body,
+  };
 
-  if (!providedSignature) {
+  const sig = params.sig ?? request.header("x-nexmo-signature") ?? "";
+
+  if (!sig) {
+    console.error("[SMS] missing Vonage signature");
     return false;
   }
 
-  const sourcePayload = request.method === "GET" ? request.query : request.body;
-  const payload = { ...sourcePayload };
-  delete payload.sig;
-
-  const serialized = Object.entries(sortObjectKeys(payload))
-    .map(([key, value]) => `${key}=${value}`)
-    .join("&");
-
-  const expectedSignature = crypto
-    .createHash("md5")
-    .update(serialized + config.vonageSignatureSecret, "utf8")
-    .digest("hex");
-
-  return (
-    expectedSignature.toLowerCase() === String(providedSignature).toLowerCase()
+  return vonage.sms.verifySignature(
+    sig,
+    params,
+    config.vonageSignatureSecret,
+    config.vonageSignatureAlgorithm,
   );
 }
 
