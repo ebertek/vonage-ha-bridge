@@ -1,3 +1,287 @@
 # vonage-ha-bridge
 
-Vonage to Home Assistant bridge for SMS and voice
+A lightweight Node.js bridge between [Vonage](https://www.vonage.com/) (formerly Nexmo) and [Home Assistant](https://www.home-assistant.io/). It lets you:
+
+- **Receive SMS messages** and forward them to Home Assistant Assist (the voice/conversation assistant), then SMS the reply back to the sender.
+- **Receive inbound phone calls** and forward them to a SIP URI or phone number.
+- **Send outbound SMS messages and calls** triggered from Home Assistant via a simple internal API.
+- **Forward call events and SMS delivery receipts** to Home Assistant webhooks.
+
+---
+
+## Table of Contents
+
+- [How It Works](#how-it-works)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the Service](#running-the-service)
+- [API Reference](#api-reference)
+- [Vonage Setup](#vonage-setup)
+- [Home Assistant Setup](#home-assistant-setup)
+- [Security](#security)
+- [Docker](#docker)
+
+---
+
+## How It Works
+
+```
+Inbound SMS  →  /vonage/sms  →  HA Assist  →  SMS reply back to sender
+Inbound Call →  /vonage/answer  →  NCCO: forward to SIP/phone
+Call Events  →  /vonage/event  →  HA webhook
+SMS DLR      →  /vonage/dlr   →  HA webhook
+
+HA → POST /api/send-sms  →  Vonage SMS API
+HA → POST /api/call      →  Vonage Voice API (outbound call with TTS)
+```
+
+---
+
+## Prerequisites
+
+- Node.js 18+
+- A [Vonage account](https://dashboard.vonage.com/) with:
+  - An API key and secret
+  - A Vonage application with a private key (for Voice/JWT)
+  - A phone number linked to that application
+- A running Home Assistant instance with a long-lived access token
+- A publicly reachable HTTPS URL for Vonage webhooks (e.g. via a reverse proxy or ngrok)
+
+---
+
+## Installation
+
+```bash
+git clone https://github.com/ebertek/vonage-ha-bridge.git
+cd vonage-ha-bridge
+npm install
+```
+
+---
+
+## Configuration
+
+All configuration is via environment variables. Copy `.env.example` to `.env` and fill in the values.
+
+### Required
+
+| Variable | Description |
+|---|---|
+| `HA_BASE_URL` | Home Assistant base URL, e.g. `http://homeassistant.local:8123` |
+| `HA_LONG_LIVED_TOKEN` | Home Assistant long-lived access token |
+| `VONAGE_API_KEY` | Vonage API key |
+| `VONAGE_API_SECRET` | Vonage API secret |
+| `VONAGE_FROM_NUMBER` | Your Vonage number (digits only, e.g. `46701234567`) |
+| `VONAGE_APPLICATION_ID` | Vonage application ID (for Voice/JWT) |
+| `VONAGE_PRIVATE_KEY_PATH` | Path to your Vonage application's private key file |
+| `INTERNAL_API_TOKEN` | A secret token for authenticating calls to `/api/*` endpoints |
+
+### Optional
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | Port to listen on |
+| `BASE_URL` | _(none)_ | Public base URL of this service (required for voice/outbound calls), e.g. `https://bridge.example.com` |
+| `HA_CALL_EVENT_WEBHOOK_ID` | `vonage_call_event` | HA webhook ID for call events |
+| `HA_SMS_DLR_WEBHOOK_ID` | `vonage_sms_dlr` | HA webhook ID for SMS delivery receipts |
+| `HA_ASSIST_AGENT_ID` | _(none)_ | HA Assist agent ID to use for SMS conversations (uses default if unset) |
+| `HA_LANGUAGE` | `en` | Language code for HA Assist |
+| `FORWARD_PHONE_NUMBER` | _(none)_ | Phone number to forward inbound calls to |
+| `FORWARD_SIP_URI` | _(none)_ | SIP URI to forward inbound calls to (takes priority over phone number) |
+| `ALLOWED_SMS_SENDERS` | _(all allowed)_ | Comma-separated list of phone numbers allowed to send SMS commands |
+| `SMS_MAX_LENGTH` | `1600` | Maximum SMS message length |
+| `ASSIST_TIMEOUT_MS` | `30000` | Timeout for HA Assist requests |
+| `OUTBOUND_TIMEOUT_MS` | `10000` | Timeout for outbound HTTP requests |
+| `VALIDATE_VONAGE_SMS_SIGNATURE` | `false` | Enable Vonage SMS signature verification |
+| `VONAGE_SIGNATURE_SECRET` | _(none)_ | Required if signature validation is enabled |
+| `VONAGE_SIGNATURE_ALGORITHM` | `md5hash` | Signature algorithm: `md5hash`, `md5`, `sha1`, `sha256`, or `sha512` |
+| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS` | `15000` | Rate limit window for outbound SMS (ms) |
+| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS` | `5` | Max outbound SMS requests per window |
+| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_MS` | `300000` | Rate limit window for outbound calls (ms) |
+| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3` | Max outbound call requests per window |
+| `LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warning`, or `error` |
+| `APP_VERSION` | `dev` | Application version string (shown in `/version`) |
+
+---
+
+## Running the Service
+
+```bash
+# Development
+node index.js
+
+# With environment file
+node --env-file=.env index.js
+```
+
+Logs are emitted as newline-delimited JSON to stdout.
+
+---
+
+## API Reference
+
+### Vonage Webhook Endpoints
+
+These are called by Vonage and should be configured in your Vonage application dashboard.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET/POST` | `/vonage/sms` | Inbound SMS receiver |
+| `GET/POST` | `/vonage/dlr` | SMS delivery receipt handler |
+| `GET/POST` | `/vonage/answer` | Inbound call answer URL (returns NCCO) |
+| `GET/POST` | `/vonage/event` | Inbound call event URL |
+| `GET` | `/ncco/talk` | Returns a talk NCCO for outbound calls (used internally) |
+
+### Internal API Endpoints
+
+These require the `x-api-token` header set to your `INTERNAL_API_TOKEN`.
+
+#### `POST /api/send-sms`
+
+Send an outbound SMS.
+
+**Request body:**
+```json
+{
+  "to": "46701234567",
+  "text": "Hello from Home Assistant!",
+  "clientRef": "optional-ref"
+}
+```
+
+#### `POST /api/call`
+
+Initiate an outbound phone call with a text-to-speech message.
+
+**Request body:**
+```json
+{
+  "to": "46701234567",
+  "text": "This is an automated alert from Home Assistant."
+}
+```
+
+### Utility Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Service info |
+| `GET` | `/health` | Health check |
+| `GET` | `/version` | Application version |
+
+---
+
+## Vonage Setup
+
+1. Create a Vonage application in the [dashboard](https://dashboard.vonage.com/applications) with **Voice** and **Messages** capabilities enabled.
+2. Set the **Answer URL** to `https://your-domain/vonage/answer` and the **Event URL** to `https://your-domain/vonage/event`.
+3. Download the generated private key and save it to the path specified by `VONAGE_PRIVATE_KEY_PATH`.
+4. Link your Vonage number to the application.
+5. Configure the **Inbound SMS webhook** on your number to point to `https://your-domain/vonage/sms`.
+6. Optionally configure the **SMS delivery receipt webhook** to `https://your-domain/vonage/dlr`.
+
+---
+
+## Home Assistant Setup
+
+### Long-lived access token
+
+Generate one in your HA profile page under **Long-lived access tokens** and set it as `HA_LONG_LIVED_TOKEN`.
+
+### Webhooks
+
+To receive call events and SMS delivery receipts in HA, create automations with a **Webhook** trigger. The webhook IDs must match `HA_CALL_EVENT_WEBHOOK_ID` (default: `vonage_call_event`) and `HA_SMS_DLR_WEBHOOK_ID` (default: `vonage_sms_dlr`).
+
+### Sending SMS / calls from HA
+
+Use a `rest_command` to call the internal API:
+
+```yaml
+rest_command:
+  send_sms:
+    url: "http://localhost:3000/api/send-sms"
+    method: POST
+    headers:
+      x-api-token: "your-internal-api-token"
+      Content-Type: application/json
+    payload: '{"to": "{{ to }}", "text": "{{ text }}"}'
+
+  make_call:
+    url: "http://localhost:3000/api/call"
+    method: POST
+    headers:
+      x-api-token: "your-internal-api-token"
+      Content-Type: application/json
+    payload: '{"to": "{{ to }}", "text": "{{ text }}"}'
+```
+
+Then call them from an automation action:
+
+```yaml
+action: rest_command.send_sms
+data:
+  to: "46701234567"
+  text: "Motion detected in the garden!"
+```
+
+---
+
+## Security
+
+- All `/api/*` endpoints require the `x-api-token` header.
+- Inbound SMS can be restricted to specific senders via `ALLOWED_SMS_SENDERS`.
+- Vonage SMS signature validation can be enabled via `VALIDATE_VONAGE_SMS_SIGNATURE` for additional assurance that requests originate from Vonage.
+- Outbound SMS and call endpoints are rate-limited per destination number.
+- Ensure `INTERNAL_API_TOKEN` is a strong random secret and that the service is not publicly accessible on the `/api/*` paths (place it behind a firewall or keep it on your LAN).
+
+---
+
+## Docker
+
+A pre-built image is available from the GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/ebertek/vonage-ha-bridge:latest
+```
+
+### Running with Docker
+
+```bash
+docker run -d \
+  --name vonage-ha-bridge \
+  --env-file .env \
+  -v /path/to/vonage-private.key:/app/private.key:ro \
+  -p 3000:3000 \
+  ghcr.io/ebertek/vonage-ha-bridge:latest
+```
+
+Make sure `VONAGE_PRIVATE_KEY_PATH` is set to the mounted path (e.g. `/app/private.key`).
+
+### Docker Compose
+
+```yaml
+services:
+  vonage-ha-bridge:
+    image: ghcr.io/ebertek/vonage-ha-bridge:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - /path/to/vonage-private.key:/app/private.key:ro
+    env_file:
+      - .env
+```
+
+### Building Locally
+
+The image runs as a non-root user (`appuser`, UID `10001` by default). You can override the UID at build time:
+
+```bash
+docker build \
+  --build-arg UID=10001 \
+  --build-arg VERSION=1.0.0 \
+  -t vonage-ha-bridge .
+```
+
+A health check is built into the image and polls `/health` every 30 seconds.
