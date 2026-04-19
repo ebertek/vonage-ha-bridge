@@ -57,7 +57,8 @@ const config = {
   ).toLowerCase(),
   vonageFromNumber: normalizePhoneNumber(process.env.VONAGE_FROM_NUMBER ?? ""),
   vonageApplicationId: process.env.VONAGE_APPLICATION_ID ?? "",
-  vonagePrivateKeyPath: process.env.VONAGE_PRIVATE_KEY_PATH ?? "",
+  vonagePrivateKeyPath:
+    process.env.VONAGE_PRIVATE_KEY_PATH ?? "/run/secrets/private.key",
   forwardPhoneNumber: normalizePhoneNumber(
     process.env.FORWARD_PHONE_NUMBER ?? "",
   ),

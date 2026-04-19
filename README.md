@@ -113,7 +113,6 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 | `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`                 | Max outbound SMS requests per window                                                                   |
 | `OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS`     | `15000`             | Rate limit window for outbound SMS (ms)                                                                |
 | `LOG_LEVEL`                             | `info`              | Log level: `debug`, `info`, `warning`, or `error`                                                      |
-| `APP_VERSION`                           | `dev`               | Application version string (shown in `/version`)                                                       |
 | `DEFAULT_VOICE_LANGUAGE`                | `en-US`             | Default TTS language for outbound calls (Vonage voice language code)                                   |
 | `DEFAULT_VOICE_STYLE`                   | `0`                 | Default voice style index for outbound calls (0 = default, varies by voice)                            |
 
@@ -280,26 +279,26 @@ docker pull ghcr.io/ebertek/vonage-ha-bridge:latest
 docker run -d \
   --name vonage-ha-bridge \
   --env-file .env \
-  -v /path/to/vonage-private.key:/app/private.key:ro \
+  -v /path/to/vonage-private.key:/run/secrets/private.key:ro \
   -p 3000:3000 \
   ghcr.io/ebertek/vonage-ha-bridge:latest
 ```
 
-Make sure `VONAGE_PRIVATE_KEY_PATH` is set to the mounted path (e.g. `/app/private.key`).
+Make sure `VONAGE_PRIVATE_KEY_PATH` is set to the mounted path (e.g. `/run/secrets/private.key`).
 
 ### Docker Compose
 
 ```yaml
 services:
   vonage-ha-bridge:
-    image: ghcr.io/ebertek/vonage-ha-bridge:latest
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - /path/to/vonage-private.key:/app/private.key:ro
     env_file:
       - .env
+    image: ghcr.io/ebertek/vonage-ha-bridge:latest
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    volumes:
+      - /path/to/private.key:/run/secrets/private.key:ro
 ```
 
 ### Building Locally
