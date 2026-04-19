@@ -114,6 +114,8 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 | `OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS`     | `15000`             | Rate limit window for outbound SMS (ms)                                                                |
 | `LOG_LEVEL`                             | `info`              | Log level: `debug`, `info`, `warning`, or `error`                                                      |
 | `APP_VERSION`                           | `dev`               | Application version string (shown in `/version`)                                                       |
+| `DEFAULT_VOICE_LANGUAGE`                | `en-US`             | Default TTS language for outbound calls (Vonage voice language code)                                   |
+| `DEFAULT_VOICE_STYLE`                   | `0`                 | Default voice style index for outbound calls (0 = default, varies by voice)                            |
 
 ---
 
@@ -172,9 +174,22 @@ Initiate an outbound phone call with a text-to-speech message.
 ```json
 {
   "to": "46701234567",
-  "text": "This is an automated alert from Home Assistant."
+  "text": "This is an automated alert from Home Assistant.",
+  "language": "en-US",
+  "style": 0,
+  "dtmfAnswer": "1234",
+  "mode": "talk"
 }
 ```
+
+| Field                     | Required | Description                                                                                      |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `to`                      | Yes      | Destination phone number (digits only, with country code)                                        |
+| `text`                    | Yes      | Text-to-speech message (max 1400 characters)                                                     |
+| `language`                | No       | TTS language code (defaults to `DEFAULT_VOICE_LANGUAGE`)                                         |
+| `style`                   | No       | Voice style index (defaults to `DEFAULT_VOICE_STYLE`)                                            |
+| `dtmfAnswer`/`dtmf_answer`| No       | DTMF digits to send automatically when the call is answered (only used in `connect` mode)        |
+| `mode`                    | No       | `"talk"` (default) plays TTS via answer URL; `"connect"` uses an inline NCCO with connect action |
 
 ### Utility Endpoints
 
