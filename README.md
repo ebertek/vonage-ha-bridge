@@ -28,24 +28,24 @@ A lightweight Node.js bridge between [Vonage](https://www.vonage.com/) (formerly
 
 ```mermaid
 flowchart LR
-    SMS[Inbound SMS] --> SMS_EP[/vonage/sms/]
-    SMS_EP --> HA[HA Assist]
-    HA --> SMS_REPLY[SMS reply to sender]
+    SMS["Inbound SMS"] --> SMS_EP["/vonage/sms/"]
+    SMS_EP --> HA["HA Assist"]
+    HA --> SMS_REPLY["SMS reply to sender"]
 
-    CALL[Inbound Call] --> ANSWER_EP[/vonage/answer/]
-    ANSWER_EP --> NCCO[NCCO: forward to SIP/phone]
+    CALL["Inbound Call"] --> ANSWER_EP["/vonage/answer/"]
+    ANSWER_EP --> NCCO["NCCO: forward to SIP/phone"]
 
-    EVENTS[Call Events] --> EVENT_EP[/vonage/event/]
-    EVENT_EP --> HA_WEBHOOK1[HA webhook]
+    EVENTS["Call Events"] --> EVENT_EP["/vonage/event/"]
+    EVENT_EP --> HA_WEBHOOK1["HA webhook"]
 
-    DLR[SMS DLR] --> DLR_EP[/vonage/dlr/]
-    DLR_EP --> HA_WEBHOOK2[HA webhook]
+    DLR["SMS DLR"] --> DLR_EP["/vonage/dlr/"]
+    DLR_EP --> HA_WEBHOOK2["HA webhook"]
 
-    HA_OUT[Home Assistant] --> SEND_SMS[POST /api/send-sms]
-    SEND_SMS --> VONAGE_SMS[Vonage SMS API]
+    HA_OUT["Home Assistant"] --> SEND_SMS["POST /api/send-sms"]
+    SEND_SMS --> VONAGE_SMS["Vonage SMS API"]
 
-    HA_OUT --> CALL_API[POST /api/call]
-    CALL_API --> VONAGE_VOICE[Vonage Voice API (TTS call)]
+    HA_OUT --> CALL_API["POST /api/call"]
+    CALL_API --> VONAGE_VOICE["Vonage Voice API (TTS call)"]
 ```
 
 ---
