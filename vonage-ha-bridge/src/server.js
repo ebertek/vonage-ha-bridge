@@ -584,8 +584,8 @@ async function createOutboundCall({
   }
 
   const token = createVonageJwt();
-  const toNumber = formatPhoneForVoice(to);
-  const fromNumber = formatPhoneForVoice(config.vonageFromNumber);
+  const toNumber = normalizePhoneNumber(to);
+  const fromNumber = normalizePhoneNumber(config.vonageFromNumber);
 
   let payload;
 

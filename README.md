@@ -182,14 +182,14 @@ Initiate an outbound phone call with a text-to-speech message.
 }
 ```
 
-| Field                     | Required | Description                                                                                      |
-| ------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `to`                      | Yes      | Destination phone number (digits only, with country code)                                        |
-| `text`                    | Yes      | Text-to-speech message (max 1400 characters)                                                     |
-| `language`                | No       | TTS language code (defaults to `DEFAULT_VOICE_LANGUAGE`)                                         |
-| `style`                   | No       | Voice style index (defaults to `DEFAULT_VOICE_STYLE`)                                            |
-| `dtmfAnswer`/`dtmf_answer`| No       | DTMF digits to send automatically when the call is answered (only used in `connect` mode)        |
-| `mode`                    | No       | `"talk"` (default) plays TTS via answer URL; `"connect"` uses an inline NCCO with connect action |
+| Field                      | Required | Description                                                                                      |
+| -------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `to`                       | Yes      | Destination phone number (digits only, with country code)                                        |
+| `text`                     | Yes      | Text-to-speech message (max 1400 characters)                                                     |
+| `language`                 | No       | TTS language code (defaults to `DEFAULT_VOICE_LANGUAGE`)                                         |
+| `style`                    | No       | Voice style index (defaults to `DEFAULT_VOICE_STYLE`)                                            |
+| `dtmfAnswer`/`dtmf_answer` | No       | DTMF digits to send automatically when the call is answered (only used in `connect` mode)        |
+| `mode`                     | No       | `"talk"` (default) plays TTS via answer URL; `"connect"` uses an inline NCCO with connect action |
 
 ### Utility Endpoints
 
