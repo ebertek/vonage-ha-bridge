@@ -140,6 +140,214 @@ const logger = {
   error: (message, meta = {}) => log("error", message, meta),
 };
 
+function isValidUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isPositiveInteger(value) {
+  return Number.isInteger(value) && value > 0;
+}
+
+function isNonNegativeInteger(value) {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function isValidLogLevel(value) {
+  return ["debug", "info", "warning", "error"].includes(value);
+}
+
+function isValidSignatureAlgorithm(value) {
+  return ["md5hash", "md5", "sha1", "sha256", "sha512"].includes(value);
+}
+
+function validateConfig() {
+  const errors = [];
+
+  const required = [
+    "HA_BASE_URL",
+    "HA_LONG_LIVED_TOKEN",
+    "VONAGE_API_KEY",
+    "VONAGE_API_SECRET",
+    "VONAGE_FROM_NUMBER",
+    "VONAGE_APPLICATION_ID",
+    "VONAGE_PRIVATE_KEY_PATH",
+    "INTERNAL_API_TOKEN",
+  ];
+
+  for (const key of required) {
+    if (!process.env[key]?.trim()) {
+      errors.push(`Missing required environment variable: ${key}`);
+    }
+  }
+
+  if (!isPositiveInteger(config.port) || config.port > 65535) {
+    errors.push(`PORT must be an integer between 1 and 65535: ${config.port}`);
+  }
+
+  if (!isValidLogLevel(config.logLevel)) {
+    errors.push(
+      `LOG_LEVEL must be one of: debug, info, warning, error. Got: ${config.logLevel}`,
+    );
+  }
+
+  if (!isValidUrl(config.haBaseUrl)) {
+    errors.push(
+      `HA_BASE_URL must be a valid http/https URL: ${config.haBaseUrl}`,
+    );
+  }
+
+  if (config.baseUrl && !isValidUrl(config.baseUrl)) {
+    errors.push(`BASE_URL must be a valid http/https URL: ${config.baseUrl}`);
+  }
+
+  if (!config.haLanguage.trim()) {
+    errors.push("HA_LANGUAGE must not be empty");
+  }
+
+  if (!config.defaultVoiceLanguage.trim()) {
+    errors.push("DEFAULT_VOICE_LANGUAGE must not be empty");
+  }
+
+  if (!isNonNegativeInteger(config.defaultVoiceStyle)) {
+    errors.push(
+      `DEFAULT_VOICE_STYLE must be a non-negative integer: ${config.defaultVoiceStyle}`,
+    );
+  }
+
+  if (!isPositiveInteger(config.smsMaxLength)) {
+    errors.push(
+      `SMS_MAX_LENGTH must be a positive integer: ${config.smsMaxLength}`,
+    );
+  }
+
+  if (!isPositiveInteger(config.assistTimeoutMs)) {
+    errors.push(
+      `ASSIST_TIMEOUT_MS must be a positive integer: ${config.assistTimeoutMs}`,
+    );
+  }
+
+  if (!isPositiveInteger(config.outboundTimeoutMs)) {
+    errors.push(
+      `OUTBOUND_TIMEOUT_MS must be a positive integer: ${config.outboundTimeoutMs}`,
+    );
+  }
+
+  if (!isPositiveInteger(config.outboundSmsRateLimitWindowMs)) {
+    errors.push("OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS must be a positive integer");
+  }
+
+  if (!isPositiveInteger(config.outboundSmsRateLimitMaxRequests)) {
+    errors.push(
+      "OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS must be a positive integer",
+    );
+  }
+
+  if (!isPositiveInteger(config.outboundCallRateLimitWindowMs)) {
+    errors.push(
+      "OUTBOUND_CALL_RATE_LIMIT_WINDOW_MS must be a positive integer",
+    );
+  }
+
+  if (!isPositiveInteger(config.outboundCallRateLimitMaxRequests)) {
+    errors.push(
+      "OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS must be a positive integer",
+    );
+  }
+
+  if (!isValidSignatureAlgorithm(config.vonageSignatureAlgorithm)) {
+    errors.push(
+      `VONAGE_SIGNATURE_ALGORITHM must be one of: md5hash, md5, sha1, sha256, sha512. Got: ${config.vonageSignatureAlgorithm}`,
+    );
+  }
+
+  if (
+    config.validateVonageSmsSignature &&
+    !config.vonageSignatureSecret.trim()
+  ) {
+    errors.push(
+      "VONAGE_SIGNATURE_SECRET is required when VALIDATE_VONAGE_SMS_SIGNATURE=true",
+    );
+  }
+
+  if (config.forwardSipUri && !config.forwardSipUri.startsWith("sip:")) {
+    errors.push(
+      `FORWARD_SIP_URI must start with "sip:": ${config.forwardSipUri}`,
+    );
+  }
+
+  if (!fs.existsSync(config.vonagePrivateKeyPath)) {
+    errors.push(
+      `VONAGE_PRIVATE_KEY_PATH does not exist: ${config.vonagePrivateKeyPath}`,
+    );
+  } else {
+    try {
+      const privateKey = fs
+        .readFileSync(config.vonagePrivateKeyPath, "utf8")
+        .trim();
+      if (!privateKey.startsWith("-----BEGIN")) {
+        errors.push(
+          `VONAGE_PRIVATE_KEY_PATH does not contain a PEM private key: ${config.vonagePrivateKeyPath}`,
+        );
+      }
+    } catch (error) {
+      errors.push(
+        `Failed to read VONAGE_PRIVATE_KEY_PATH (${config.vonagePrivateKeyPath}): ${error.message}`,
+      );
+    }
+  }
+
+  try {
+    config.vonageFromNumber = normalizePhoneNumber(config.vonageFromNumber);
+  } catch (error) {
+    errors.push(`Invalid VONAGE_FROM_NUMBER: ${error.message}`);
+  }
+
+  if (config.forwardPhoneNumber) {
+    try {
+      config.forwardPhoneNumber = normalizePhoneNumber(
+        config.forwardPhoneNumber,
+      );
+    } catch (error) {
+      errors.push(`Invalid FORWARD_PHONE_NUMBER: ${error.message}`);
+    }
+  }
+
+  config.allowedSmsSenders = config.allowedSmsSenders.map((sender) => {
+    try {
+      return normalizePhoneNumber(sender);
+    } catch (error) {
+      errors.push(
+        `Invalid ALLOWED_SMS_SENDERS entry "${sender}": ${error.message}`,
+      );
+      return sender;
+    }
+  });
+
+  if (errors.length > 0) {
+    for (const error of errors) {
+      process.stderr.write(
+        `${JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: "ERROR",
+          logger: "startup",
+          message: error,
+        })}\n`,
+      );
+    }
+
+    throw new Error(
+      `Configuration validation failed with ${errors.length} error(s)`,
+    );
+  }
+}
+
+validateConfig();
+
 const app = express();
 
 app.use(
@@ -225,27 +433,6 @@ function cleanupRateLimitStore() {
 }
 
 setInterval(cleanupRateLimitStore, 60_000).unref();
-
-function assertRequiredConfig() {
-  const required = [
-    "HA_BASE_URL",
-    "HA_LONG_LIVED_TOKEN",
-    "VONAGE_API_KEY",
-    "VONAGE_API_SECRET",
-    "VONAGE_FROM_NUMBER",
-    "VONAGE_APPLICATION_ID",
-    "VONAGE_PRIVATE_KEY_PATH",
-    "INTERNAL_API_TOKEN",
-  ];
-
-  for (const key of required) {
-    if (!process.env[key]) {
-      throw new Error(`Missing required environment variable: ${key}`);
-    }
-  }
-}
-
-assertRequiredConfig();
 
 const outboundSmsRateLimiter = createRateLimiter({
   windowMs: config.outboundSmsRateLimitWindowMs,
@@ -623,10 +810,6 @@ async function createOutboundCall({
       .trim()
       .slice(0, 1400);
 
-    const answerUrl = `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(
-      talkText,
-    )}`;
-
     payload = {
       to: [
         {
@@ -638,7 +821,9 @@ async function createOutboundCall({
         type: "phone",
         number: fromNumber,
       },
-      answer_url: [answerUrl],
+      answer_url: [
+        `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(talkText)}`,
+      ],
       event_url: [`${config.baseUrl}/vonage/event`],
     };
   }
