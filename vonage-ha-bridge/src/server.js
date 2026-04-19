@@ -59,9 +59,9 @@ const config = {
   vonageApplicationId: process.env.VONAGE_APPLICATION_ID ?? "",
   vonagePrivateKeyPath:
     process.env.VONAGE_PRIVATE_KEY_PATH ?? "/run/secrets/private.key",
-  forwardPhoneNumber: normalizePhoneNumber(
-    process.env.FORWARD_PHONE_NUMBER ?? "",
-  ),
+  forwardPhoneNumber: process.env.FORWARD_PHONE_NUMBER
+    ? normalizePhoneNumber(process.env.FORWARD_PHONE_NUMBER)
+    : "",
   forwardSipUri: process.env.FORWARD_SIP_URI ?? "",
   allowedSmsSenders: (process.env.ALLOWED_SMS_SENDERS ?? "")
     .split(",")
