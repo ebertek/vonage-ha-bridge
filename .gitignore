@@ -1,3 +1,7 @@
+# macOS and Synology trash
+**/.DS_Store
+@eaDir
+
 # Logs
 logs
 *.log
