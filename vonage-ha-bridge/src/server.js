@@ -9,7 +9,31 @@ import jwt from "jsonwebtoken";
 dotenv.config();
 
 function normalizePhoneNumber(value) {
-  return String(value ?? "").replace(/[^\d]/gu, "");
+  let msisdn = String(value ?? "").trim();
+
+  if (msisdn.startsWith("+")) {
+    msisdn = msisdn.slice(1);
+  }
+
+  msisdn = msisdn.replace(/[^\d]/gu, "");
+
+  if (msisdn.startsWith("00")) {
+    msisdn = msisdn.slice(2);
+  }
+
+  if (!msisdn || msisdn.length < 7 || msisdn.length > 15) {
+    throw new Error(
+      `Invalid phone number length: ${msisdn}. Must be 7-15 digits.`,
+    );
+  }
+
+  if (msisdn.startsWith("0")) {
+    throw new Error(
+      `Invalid phone number format: ${msisdn}. Must start with country code 1-9.`,
+    );
+  }
+
+  return msisdn;
 }
 
 const config = {
@@ -65,6 +89,11 @@ const config = {
   ),
   outboundCallRateLimitMaxRequests: Number.parseInt(
     process.env.OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS ?? "3",
+    10,
+  ),
+  defaultVoiceLanguage: process.env.DEFAULT_VOICE_LANGUAGE ?? "en-US",
+  defaultVoiceStyle: Number.parseInt(
+    process.env.DEFAULT_VOICE_STYLE ?? "0",
     10,
   ),
   validateVonageSmsSignature:
@@ -241,7 +270,17 @@ function sanitizeSmsText(value) {
 }
 
 function loadPrivateKey() {
-  return fs.readFileSync(config.vonagePrivateKeyPath, "utf8");
+  const privateKey = fs
+    .readFileSync(config.vonagePrivateKeyPath, "utf8")
+    .trim();
+
+  if (!privateKey.startsWith("-----BEGIN")) {
+    throw new Error(
+      "VONAGE_PRIVATE_KEY_PATH does not contain a PEM private key",
+    );
+  }
+
+  return privateKey;
 }
 
 function createVonageJwt() {
@@ -388,6 +427,43 @@ function isValidVonageSmsSignature(request) {
   }
 }
 
+function getVonageSmsError(message) {
+  switch (message.status) {
+    case "0":
+      return null;
+    case "1":
+      return "Rate limit exceeded";
+    case "2":
+      return "Invalid request parameters";
+    case "3":
+      return "Invalid sender address";
+    case "4":
+      return "Invalid Vonage credentials";
+    case "5":
+      return "Internal Vonage error";
+    case "6":
+      return "Invalid message";
+    case "7":
+      return "Number barred";
+    case "8":
+      return "Partner account barred";
+    case "9":
+      return "Partner quota exceeded";
+    case "11":
+      return "Account not enabled for REST";
+    case "12":
+      return "Message too long";
+    case "13":
+      return "Communication failed";
+    case "14":
+      return "Invalid signature";
+    case "15":
+      return "Invalid sender address";
+    default:
+      return message["error-text"] ?? "Unknown Vonage error";
+  }
+}
+
 async function callHaConversation({ from, text }) {
   const payload = {
     text,
@@ -475,17 +551,32 @@ async function sendSms({ to, text, clientRef }) {
     throw new Error("Vonage SMS API returned no message result");
   }
 
-  if (message.status !== "0") {
+  const smsError = getVonageSmsError(message);
+
+  if (smsError) {
     throw new Error(
-      `Vonage SMS failed with status ${message.status}: ${message["error-text"] ?? "unknown error"}`,
+      `Vonage SMS failed with status ${message.status}: ${smsError}`,
     );
   }
 
-  logger.info("SMS sent", { result: result.data });
+  logger.info("SMS sent", {
+    to: message.to,
+    message_id: message["message-id"],
+    status: message.status,
+    client_ref: message["client-ref"] ?? clientRef ?? null,
+  });
+
   return result.data;
 }
 
-async function createOutboundCall({ to, text }) {
+async function createOutboundCall({
+  to,
+  text,
+  language = config.defaultVoiceLanguage,
+  style = config.defaultVoiceStyle,
+  dtmfAnswer,
+  mode = "talk",
+}) {
   if (!config.baseUrl) {
     throw new Error(
       "BASE_URL is required for outbound calls (voice features disabled)",
@@ -493,35 +584,70 @@ async function createOutboundCall({ to, text }) {
   }
 
   const token = createVonageJwt();
-  const answerUrl = `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(
-    String(text ?? "")
-      .trim()
-      .slice(0, 1400),
-  )}`;
+  const toNumber = formatPhoneForVoice(to);
+  const fromNumber = formatPhoneForVoice(config.vonageFromNumber);
 
-  const result = await http.post(
-    "https://api.nexmo.com/v1/calls",
-    {
+  let payload;
+
+  if (mode === "connect") {
+    const endpoint = {
+      type: "phone",
+      number: toNumber,
+    };
+
+    if (dtmfAnswer) {
+      endpoint.dtmfAnswer = String(dtmfAnswer);
+    }
+
+    payload = {
+      to: [endpoint],
+      from: {
+        type: "phone",
+        number: fromNumber,
+      },
+      ncco: [
+        {
+          action: "talk",
+          text: String(text ?? "Please wait while we connect your call.")
+            .trim()
+            .slice(0, 1400),
+          ...(language ? { language } : {}),
+          ...(style !== undefined ? { style } : {}),
+        },
+      ],
+      event_url: [`${config.baseUrl}/vonage/event`],
+    };
+  } else {
+    const talkText = String(text ?? "")
+      .trim()
+      .slice(0, 1400);
+
+    const answerUrl = `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(
+      talkText,
+    )}`;
+
+    payload = {
       to: [
         {
           type: "phone",
-          number: normalizePhoneNumber(to),
+          number: toNumber,
         },
       ],
       from: {
         type: "phone",
-        number: config.vonageFromNumber,
+        number: fromNumber,
       },
       answer_url: [answerUrl],
       event_url: [`${config.baseUrl}/vonage/event`],
+    };
+  }
+
+  const result = await http.post("https://api.nexmo.com/v1/calls", payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
     },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    },
-  );
+  });
 
   return result.data;
 }
@@ -659,7 +785,13 @@ async function handleSmsDlr(request, response) {
   try {
     const payload = request.method === "GET" ? request.query : request.body;
 
-    logger.info("SMS delivery receipt received", { payload });
+    logger.info("SMS delivery receipt received", {
+      status: payload.status,
+      message_id: payload.messageId,
+      msisdn: payload.msisdn,
+      client_ref: payload["client-ref"] ?? null,
+      err_code: payload["err-code"] ?? null,
+    });
 
     await callHaWebhook(config.haSmsDlrWebhookId, {
       provider: "vonage",
@@ -778,7 +910,15 @@ app.post(
   requireInternalToken,
   async (request, response) => {
     try {
-      const { to, text } = request.body;
+      const {
+        to,
+        text,
+        language,
+        style,
+        dtmfAnswer,
+        dtmf_answer: dtmfAnswerAlt,
+        mode,
+      } = request.body;
 
       if (!to || !text) {
         response
@@ -787,7 +927,18 @@ app.post(
         return;
       }
 
-      const result = await createOutboundCall({ to, text });
+      const result = await createOutboundCall({
+        to,
+        text,
+        language,
+        style:
+          style === undefined || style === null
+            ? config.defaultVoiceStyle
+            : Number.parseInt(String(style), 10),
+        dtmfAnswer: dtmfAnswer ?? dtmfAnswerAlt,
+        mode: mode === "connect" ? "connect" : "talk",
+      });
+
       response.json(result);
     } catch (error) {
       logger.error("Outbound call failed", {
