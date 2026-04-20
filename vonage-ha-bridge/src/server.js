@@ -1256,10 +1256,35 @@ app.use((_request, response) => {
   response.status(404).json({ error: "Not found" });
 });
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   logger.info("Server started", {
     version: config.version,
     port: config.port,
     log_level: config.logLevel,
   });
 });
+
+function shutdown(signal) {
+  logger.info("Shutdown requested", { signal });
+
+  server.close((error) => {
+    if (error) {
+      logger.error("HTTP server close failed", {
+        error: error.message ?? String(error),
+      });
+      process.exit(1);
+      return;
+    }
+
+    logger.info("HTTP server closed");
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    logger.error("Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
