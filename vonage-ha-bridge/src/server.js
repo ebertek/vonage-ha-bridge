@@ -67,8 +67,9 @@ const config = {
   forwardSipUri: process.env.FORWARD_SIP_URI ?? "",
   allowedSmsSenders: (process.env.ALLOWED_SMS_SENDERS ?? "")
     .split(",")
-    .map((value) => normalizePhoneNumber(value.trim()))
-    .filter(Boolean),
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => normalizePhoneNumber(value)),
   smsMaxLength: Number.parseInt(process.env.SMS_MAX_LENGTH ?? "1600", 10),
   assistTimeoutMs:
     Number.parseInt(process.env.ASSIST_TIMEOUT_S ?? "30", 10) * 1000,
@@ -214,14 +215,12 @@ function validateConfig() {
   }
 
   // ── Voice credentials (optional feature group) ────────────────────────────
-  const hasApplicationId = Boolean(process.env.VONAGE_APPLICATION_ID?.trim());
-  const hasPrivateKeyPath = Boolean(
-    process.env.VONAGE_PRIVATE_KEY_PATH?.trim(),
-  );
+  const hasApplicationId = Boolean(config.vonageApplicationId.trim());
+  const hasPrivateKeyPath = Boolean(config.vonagePrivateKeyPath.trim());
 
-  if (hasApplicationId !== hasPrivateKeyPath) {
+  if (hasApplicationId && !hasPrivateKeyPath) {
     errors.push(
-      "VONAGE_APPLICATION_ID and VONAGE_PRIVATE_KEY_PATH must both be set or both be unset",
+      "Voice is partially configured: VONAGE_APPLICATION_ID is set but no private key path is available",
     );
   } else if (!hasApplicationId && !hasPrivateKeyPath) {
     warnings.push(
@@ -347,22 +346,6 @@ function validateConfig() {
     }
   }
 
-  try {
-    config.vonageFromNumber = normalizePhoneNumber(config.vonageFromNumber);
-  } catch (error) {
-    errors.push(`Invalid VONAGE_FROM_NUMBER: ${error.message}`);
-  }
-
-  if (config.forwardPhoneNumber) {
-    try {
-      config.forwardPhoneNumber = normalizePhoneNumber(
-        config.forwardPhoneNumber,
-      );
-    } catch (error) {
-      errors.push(`Invalid FORWARD_PHONE_NUMBER: ${error.message}`);
-    }
-  }
-
   config.allowedSmsSenders = config.allowedSmsSenders.map((sender) => {
     try {
       return normalizePhoneNumber(sender);
@@ -378,7 +361,7 @@ function validateConfig() {
     process.stderr.write(
       `${JSON.stringify({
         timestamp: new Date().toISOString(),
-        level: "WARN",
+        level: "WARNING",
         logger: "startup",
         message: warning,
       })}\n`,
