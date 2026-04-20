@@ -171,7 +171,6 @@ function validateConfig() {
     "VONAGE_API_SECRET",
     "VONAGE_FROM_NUMBER",
     "VONAGE_APPLICATION_ID",
-    "VONAGE_PRIVATE_KEY_PATH",
     "INTERNAL_API_TOKEN",
   ];
 
