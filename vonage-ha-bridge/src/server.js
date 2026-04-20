@@ -215,16 +215,10 @@ function validateConfig() {
   }
 
   // ── Voice credentials (optional feature group) ────────────────────────────
-  const hasApplicationId = Boolean(config.vonageApplicationId.trim());
-  const hasPrivateKeyPath = Boolean(config.vonagePrivateKeyPath.trim());
-
-  if (hasApplicationId && !hasPrivateKeyPath) {
-    errors.push(
-      "Voice is partially configured: VONAGE_APPLICATION_ID is set but no private key path is available",
-    );
-  } else if (!hasApplicationId && !hasPrivateKeyPath) {
+  const voiceReady = Boolean(config.vonageApplicationId.trim());
+  if (!voiceReady) {
     warnings.push(
-      "VONAGE_APPLICATION_ID / VONAGE_PRIVATE_KEY_PATH not set — outbound calls and inbound call handling are disabled",
+      "VONAGE_APPLICATION_ID not set — outbound calls and inbound call handling are disabled",
     );
   }
 
@@ -323,7 +317,7 @@ function validateConfig() {
   }
 
   // ── Private key validation — only when voice credentials are provided ──────
-  if (hasApplicationId && hasPrivateKeyPath) {
+  if (voiceReady) {
     if (!fs.existsSync(config.vonagePrivateKeyPath)) {
       errors.push(
         `VONAGE_PRIVATE_KEY_PATH does not exist: ${config.vonagePrivateKeyPath}`,
@@ -345,17 +339,6 @@ function validateConfig() {
       }
     }
   }
-
-  config.allowedSmsSenders = config.allowedSmsSenders.map((sender) => {
-    try {
-      return normalizePhoneNumber(sender);
-    } catch (error) {
-      errors.push(
-        `Invalid ALLOWED_SMS_SENDERS entry "${sender}": ${error.message}`,
-      );
-      return sender;
-    }
-  });
 
   for (const warning of warnings) {
     process.stderr.write(
@@ -387,9 +370,6 @@ function validateConfig() {
 
   // ── Derive feature flags from validated config ────────────────────────────
   const haReady = Boolean(config.haBaseUrl && config.haToken);
-  const voiceReady = Boolean(
-    config.vonageApplicationId && config.vonagePrivateKeyPath,
-  );
 
   features.sms = Boolean(
     config.vonageApiKey && config.vonageApiSecret && config.vonageFromNumber,
@@ -1187,7 +1167,7 @@ app.post(
     if (!features.outboundCalls) {
       response.status(503).json({
         error:
-          "Outbound calls are disabled — set VONAGE_APPLICATION_ID, VONAGE_PRIVATE_KEY_PATH, and BASE_URL to enable this feature",
+          "Outbound calls are disabled — set VONAGE_APPLICATION_ID and BASE_URL, and ensure the private key exists at VONAGE_PRIVATE_KEY_PATH",
       });
       return;
     }
