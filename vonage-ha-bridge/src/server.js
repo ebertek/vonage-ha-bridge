@@ -68,26 +68,22 @@ const config = {
     .map((value) => normalizePhoneNumber(value.trim()))
     .filter(Boolean),
   smsMaxLength: Number.parseInt(process.env.SMS_MAX_LENGTH ?? "1600", 10),
-  assistTimeoutMs: Number.parseInt(
-    process.env.ASSIST_TIMEOUT_MS ?? "30000",
-    10,
-  ),
-  outboundTimeoutMs: Number.parseInt(
-    process.env.OUTBOUND_TIMEOUT_MS ?? "10000",
-    10,
-  ),
-  outboundSmsRateLimitWindowMs: Number.parseInt(
-    process.env.OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS ?? "15000",
-    10,
-  ),
+  assistTimeoutMs:
+    Number.parseInt(process.env.ASSIST_TIMEOUT_S ?? "30", 10) * 1000,
+  outboundTimeoutMs:
+    Number.parseInt(process.env.OUTBOUND_TIMEOUT_S ?? "10", 10) * 1000,
+  outboundSmsRateLimitWindowMs:
+    Number.parseInt(process.env.OUTBOUND_SMS_RATE_LIMIT_WINDOW_S ?? "15", 10) *
+    1000,
   outboundSmsRateLimitMaxRequests: Number.parseInt(
     process.env.OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS ?? "5",
     10,
   ),
-  outboundCallRateLimitWindowMs: Number.parseInt(
-    process.env.OUTBOUND_CALL_RATE_LIMIT_WINDOW_MS ?? "300000",
-    10,
-  ),
+  outboundCallRateLimitWindowMs:
+    Number.parseInt(
+      process.env.OUTBOUND_CALL_RATE_LIMIT_WINDOW_S ?? "300",
+      10,
+    ) * 1000,
   outboundCallRateLimitMaxRequests: Number.parseInt(
     process.env.OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS ?? "3",
     10,
@@ -227,18 +223,18 @@ function validateConfig() {
 
   if (!isPositiveInteger(config.assistTimeoutMs)) {
     errors.push(
-      `ASSIST_TIMEOUT_MS must be a positive integer: ${config.assistTimeoutMs}`,
+      `ASSIST_TIMEOUT_S must be a positive integer: ${config.assistTimeoutMs / 1000}`,
     );
   }
 
   if (!isPositiveInteger(config.outboundTimeoutMs)) {
     errors.push(
-      `OUTBOUND_TIMEOUT_MS must be a positive integer: ${config.outboundTimeoutMs}`,
+      `OUTBOUND_TIMEOUT_S must be a positive integer: ${config.outboundTimeoutMs / 1000}`,
     );
   }
 
   if (!isPositiveInteger(config.outboundSmsRateLimitWindowMs)) {
-    errors.push("OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS must be a positive integer");
+    errors.push("OUTBOUND_SMS_RATE_LIMIT_WINDOW_S must be a positive integer");
   }
 
   if (!isPositiveInteger(config.outboundSmsRateLimitMaxRequests)) {
@@ -248,9 +244,7 @@ function validateConfig() {
   }
 
   if (!isPositiveInteger(config.outboundCallRateLimitWindowMs)) {
-    errors.push(
-      "OUTBOUND_CALL_RATE_LIMIT_WINDOW_MS must be a positive integer",
-    );
+    errors.push("OUTBOUND_CALL_RATE_LIMIT_WINDOW_S must be a positive integer");
   }
 
   if (!isPositiveInteger(config.outboundCallRateLimitMaxRequests)) {

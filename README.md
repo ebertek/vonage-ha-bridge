@@ -103,15 +103,15 @@ All configuration is via environment variables. Copy `.env.example` to `.env` an
 | `FORWARD_SIP_URI`                       | _(none)_            | SIP URI to forward inbound calls to (takes priority over phone number)                                 |
 | `ALLOWED_SMS_SENDERS`                   | _(all allowed)_     | Comma-separated list of phone numbers allowed to send SMS commands                                     |
 | `SMS_MAX_LENGTH`                        | `1600`              | Maximum SMS message length                                                                             |
-| `ASSIST_TIMEOUT_MS`                     | `30000`             | Timeout for HA Assist requests                                                                         |
-| `OUTBOUND_TIMEOUT_MS`                   | `10000`             | Timeout for outbound HTTP requests                                                                     |
+| `ASSIST_TIMEOUT_S`                      | `30`                | Timeout for HA Assist requests (seconds)                                                               |
+| `OUTBOUND_TIMEOUT_S`                    | `10`                | Timeout for outbound HTTP requests (seconds)                                                           |
 | `VALIDATE_VONAGE_SMS_SIGNATURE`         | `false`             | Enable Vonage SMS signature verification                                                               |
 | `VONAGE_SIGNATURE_SECRET`               | _(none)_            | Required if signature validation is enabled                                                            |
 | `VONAGE_SIGNATURE_ALGORITHM`            | `md5hash`           | Signature algorithm: `md5hash`, `md5`, `sha1`, `sha256`, or `sha512`                                   |
 | `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3`                 | Max outbound call requests per window                                                                  |
-| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_MS`    | `300000`            | Rate limit window for outbound calls (ms)                                                              |
+| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_S`     | `300`               | Rate limit window for outbound calls (seconds)                                                         |
 | `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`                 | Max outbound SMS requests per window                                                                   |
-| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_MS`     | `15000`             | Rate limit window for outbound SMS (ms)                                                                |
+| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_S`      | `15`                | Rate limit window for outbound SMS (seconds)                                                           |
 | `LOG_LEVEL`                             | `info`              | Log level: `debug`, `info`, `warning`, or `error`                                                      |
 | `DEFAULT_VOICE_LANGUAGE`                | `en-US`             | Default TTS language for outbound calls (Vonage voice language code)                                   |
 | `DEFAULT_VOICE_STYLE`                   | `0`                 | Default voice style index for outbound calls (0 = default, varies by voice)                            |
