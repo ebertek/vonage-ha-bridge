@@ -223,34 +223,71 @@ To receive call events and SMS delivery receipts in HA, create automations with 
 
 ### Sending SMS / calls from HA
 
-Use a `rest_command` to call the internal API:
+Use a `rest_command` to call the internal API. Add the following block in your Home Assistant's `configuration.yaml` file:
 
 ```yaml
 rest_command:
-  send_sms:
-    url: "http://localhost:3000/api/send-sms"
-    method: POST
-    headers:
-      x-api-token: "your-internal-api-token"
-      Content-Type: application/json
-    payload: '{"to": "{{ to }}", "text": "{{ text }}"}'
-
   make_call:
-    url: "http://localhost:3000/api/call"
-    method: POST
+    content_type: "application/json"
     headers:
-      x-api-token: "your-internal-api-token"
-      Content-Type: application/json
-    payload: '{"to": "{{ to }}", "text": "{{ text }}"}'
+      x-api-token: !secret vonage_bridge_api_token
+    method: POST
+    payload: >
+      {
+        "to": "{{ to }}",
+        "text": "{{ text }}",
+        "mode": "{{ mode | default('talk') }}",
+        "language": "{{ language | default('en-US') }}",
+        "style": "{{ style | default('0') }}",
+        "dtmf_answer": "{{ dtmf_answer | default('') }}"
+      }
+    url: "http://localhost:3000/api/call"
+  send_sms:
+    content_type: "application/json"
+    headers:
+      x-api-token: !secret vonage_bridge_api_token
+    method: POST
+    payload: >
+      {
+        "to": "{{ to }}",
+        "text": "{{ text }}"
+      }
+    url: "http://localhost:3000/api/send-sms"
+```
+
+Add your `INTERNAL_API_TOKEN` in your Home Assistant's `secrets.yaml` file:
+
+```yaml
+vonage_bridge_api_token: INTERNAL_API_TOKEN
 ```
 
 Then call them from an automation action:
 
 ```yaml
-action: rest_command.send_sms
-data:
-  to: "46701234567"
-  text: "Motion detected in the garden!"
+alias: Announce water leak
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - binary_sensor.water_leak
+    to:
+      - "on"
+conditions: []
+actions:
+  - action: notify.hass
+    data:
+      message: "Water leak detected!"
+      target: "1296883565967179786"
+  - action: rest_command.make_call
+    data:
+      to: "46701234567"
+      text: "Water leak detected!"
+      mode: "talk"
+  - action: rest_command.send_sms
+    data:
+      to: "46701234567"
+      text: "Water leak detected!"
+mode: single
 ```
 
 ---
@@ -293,7 +330,7 @@ services:
   vonage-ha-bridge:
     env_file:
       - .env
-    image: ghcr.io/ebertek/vonage-ha-bridge:latest
+    image: "ghcr.io/ebertek/vonage-ha-bridge:latest"
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -308,7 +345,7 @@ The image runs as a non-root user (`appuser`, UID `10001` by default). You can o
 ```bash
 docker build \
   --build-arg UID=10001 \
-  --build-arg VERSION=1.0.0 \
+  --build-arg VERSION=dev \
   -t vonage-ha-bridge .
 ```
 
