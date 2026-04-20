@@ -55,7 +55,9 @@ const config = {
   vonageSignatureAlgorithm: (
     process.env.VONAGE_SIGNATURE_ALGORITHM ?? "md5hash"
   ).toLowerCase(),
-  vonageFromNumber: normalizePhoneNumber(process.env.VONAGE_FROM_NUMBER ?? ""),
+  vonageFromNumber: process.env.VONAGE_FROM_NUMBER?.trim()
+    ? normalizePhoneNumber(process.env.VONAGE_FROM_NUMBER)
+    : "",
   vonageApplicationId: process.env.VONAGE_APPLICATION_ID ?? "",
   vonagePrivateKeyPath:
     process.env.VONAGE_PRIVATE_KEY_PATH ?? "/run/secrets/private.key",
@@ -161,23 +163,77 @@ function isValidSignatureAlgorithm(value) {
   return ["md5hash", "md5", "sha1", "sha256", "sha512"].includes(value);
 }
 
+// ---------------------------------------------------------------------------
+// Feature flags — derived from which credential groups are configured.
+// These are set during validateConfig() and used at runtime to gate
+// functionality gracefully rather than crashing on startup.
+// ---------------------------------------------------------------------------
+const features = {
+  /** Outbound SMS via /api/send-sms and as inbound SMS reply channel */
+  sms: false,
+  /** Inbound SMS → HA Assist → reply flow */
+  inboundSms: false,
+  /** Outbound voice calls via /api/call */
+  outboundCalls: false,
+  /** Forward inbound calls to a SIP/phone destination */
+  inboundCallForwarding: false,
+  /** Push call events and SMS DLRs to HA webhooks */
+  haWebhooks: false,
+};
+
 function validateConfig() {
   const errors = [];
+  const warnings = [];
 
-  const required = [
-    "HA_BASE_URL",
-    "HA_LONG_LIVED_TOKEN",
+  // ── Always-required ───────────────────────────────────────────────────────
+  const alwaysRequired = [
     "VONAGE_API_KEY",
     "VONAGE_API_SECRET",
     "VONAGE_FROM_NUMBER",
-    "VONAGE_APPLICATION_ID",
     "INTERNAL_API_TOKEN",
   ];
 
-  for (const key of required) {
+  for (const key of alwaysRequired) {
     if (!process.env[key]?.trim()) {
       errors.push(`Missing required environment variable: ${key}`);
     }
+  }
+
+  // ── HA credentials (optional feature group) ───────────────────────────────
+  const hasHaUrl = Boolean(process.env.HA_BASE_URL?.trim());
+  const hasHaToken = Boolean(process.env.HA_LONG_LIVED_TOKEN?.trim());
+
+  if (hasHaUrl !== hasHaToken) {
+    errors.push(
+      "HA_BASE_URL and HA_LONG_LIVED_TOKEN must both be set or both be unset",
+    );
+  } else if (!hasHaUrl && !hasHaToken) {
+    warnings.push(
+      "HA_BASE_URL / HA_LONG_LIVED_TOKEN not set — inbound SMS→Assist and HA webhook forwarding are disabled",
+    );
+  }
+
+  // ── Voice credentials (optional feature group) ────────────────────────────
+  const hasApplicationId = Boolean(process.env.VONAGE_APPLICATION_ID?.trim());
+  const hasPrivateKeyPath = Boolean(
+    process.env.VONAGE_PRIVATE_KEY_PATH?.trim(),
+  );
+
+  if (hasApplicationId !== hasPrivateKeyPath) {
+    errors.push(
+      "VONAGE_APPLICATION_ID and VONAGE_PRIVATE_KEY_PATH must both be set or both be unset",
+    );
+  } else if (!hasApplicationId && !hasPrivateKeyPath) {
+    warnings.push(
+      "VONAGE_APPLICATION_ID / VONAGE_PRIVATE_KEY_PATH not set — outbound calls and inbound call handling are disabled",
+    );
+  }
+
+  // ── Validate HA URL format only when provided ─────────────────────────────
+  if (hasHaUrl && !isValidUrl(config.haBaseUrl)) {
+    errors.push(
+      `HA_BASE_URL must be a valid http/https URL: ${config.haBaseUrl}`,
+    );
   }
 
   if (!isPositiveInteger(config.port) || config.port > 65535) {
@@ -187,12 +243,6 @@ function validateConfig() {
   if (!isValidLogLevel(config.logLevel)) {
     errors.push(
       `LOG_LEVEL must be one of: debug, info, warning, error. Got: ${config.logLevel}`,
-    );
-  }
-
-  if (!isValidUrl(config.haBaseUrl)) {
-    errors.push(
-      `HA_BASE_URL must be a valid http/https URL: ${config.haBaseUrl}`,
     );
   }
 
@@ -273,24 +323,27 @@ function validateConfig() {
     );
   }
 
-  if (!fs.existsSync(config.vonagePrivateKeyPath)) {
-    errors.push(
-      `VONAGE_PRIVATE_KEY_PATH does not exist: ${config.vonagePrivateKeyPath}`,
-    );
-  } else {
-    try {
-      const privateKey = fs
-        .readFileSync(config.vonagePrivateKeyPath, "utf8")
-        .trim();
-      if (!privateKey.startsWith("-----BEGIN")) {
+  // ── Private key validation — only when voice credentials are provided ──────
+  if (hasApplicationId && hasPrivateKeyPath) {
+    if (!fs.existsSync(config.vonagePrivateKeyPath)) {
+      errors.push(
+        `VONAGE_PRIVATE_KEY_PATH does not exist: ${config.vonagePrivateKeyPath}`,
+      );
+    } else {
+      try {
+        const privateKey = fs
+          .readFileSync(config.vonagePrivateKeyPath, "utf8")
+          .trim();
+        if (!privateKey.startsWith("-----BEGIN")) {
+          errors.push(
+            `VONAGE_PRIVATE_KEY_PATH does not contain a PEM private key: ${config.vonagePrivateKeyPath}`,
+          );
+        }
+      } catch (error) {
         errors.push(
-          `VONAGE_PRIVATE_KEY_PATH does not contain a PEM private key: ${config.vonagePrivateKeyPath}`,
+          `Failed to read VONAGE_PRIVATE_KEY_PATH (${config.vonagePrivateKeyPath}): ${error.message}`,
         );
       }
-    } catch (error) {
-      errors.push(
-        `Failed to read VONAGE_PRIVATE_KEY_PATH (${config.vonagePrivateKeyPath}): ${error.message}`,
-      );
     }
   }
 
@@ -321,6 +374,17 @@ function validateConfig() {
     }
   });
 
+  for (const warning of warnings) {
+    process.stderr.write(
+      `${JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "WARN",
+        logger: "startup",
+        message: warning,
+      })}\n`,
+    );
+  }
+
   if (errors.length > 0) {
     for (const error of errors) {
       process.stderr.write(
@@ -337,6 +401,21 @@ function validateConfig() {
       `Configuration validation failed with ${errors.length} error(s)`,
     );
   }
+
+  // ── Derive feature flags from validated config ────────────────────────────
+  const haReady = Boolean(config.haBaseUrl && config.haToken);
+  const voiceReady = Boolean(
+    config.vonageApplicationId && config.vonagePrivateKeyPath,
+  );
+
+  features.sms = Boolean(
+    config.vonageApiKey && config.vonageApiSecret && config.vonageFromNumber,
+  );
+  features.inboundSms = features.sms && haReady;
+  features.outboundCalls = voiceReady && Boolean(config.baseUrl);
+  features.inboundCallForwarding =
+    voiceReady && Boolean(config.forwardSipUri || config.forwardPhoneNumber);
+  features.haWebhooks = haReady;
 }
 
 validateConfig();
@@ -368,8 +447,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 if (!config.baseUrl) {
-  logger.warn("BASE_URL not set — voice features will not work");
+  logger.warn("BASE_URL not set — outbound calls are disabled");
 }
+
+logger.info("Feature summary", {
+  outbound_sms: features.sms,
+  inbound_sms_to_assist: features.inboundSms,
+  outbound_calls: features.outboundCalls,
+  inbound_call_forwarding: features.inboundCallForwarding,
+  ha_webhooks: features.haWebhooks,
+});
 
 const http = axios.create({
   timeout: config.outboundTimeoutMs,
@@ -931,6 +1018,14 @@ async function handleInboundSms(request, response) {
 
     let replyText;
 
+    if (!features.inboundSms) {
+      logger.warn(
+        "Inbound SMS received but HA Assist is not configured — dropping without reply",
+      );
+      response.status(200).json({ ok: true });
+      return;
+    }
+
     try {
       const assistResponse = await callHaConversation({ from, text });
       replyText = extractAssistReply(assistResponse);
@@ -972,12 +1067,18 @@ async function handleSmsDlr(request, response) {
       err_code: payload["err-code"] ?? null,
     });
 
-    await callHaWebhook(config.haSmsDlrWebhookId, {
-      provider: "vonage",
-      type: "sms_dlr",
-      method: request.method,
-      payload,
-    });
+    if (features.haWebhooks) {
+      await callHaWebhook(config.haSmsDlrWebhookId, {
+        provider: "vonage",
+        type: "sms_dlr",
+        method: request.method,
+        payload,
+      });
+    } else {
+      logger.debug(
+        "SMS DLR received but HA webhooks not configured — skipping forwarding",
+      );
+    }
 
     response.status(200).json({ ok: true });
   } catch (error) {
@@ -1018,11 +1119,17 @@ app.post("/vonage/answer", (_request, response) => {
 
 app.get("/vonage/event", async (request, response) => {
   try {
-    await callHaWebhook(config.haCallEventWebhookId, {
-      provider: "vonage",
-      method: "GET",
-      payload: request.query,
-    });
+    if (features.haWebhooks) {
+      await callHaWebhook(config.haCallEventWebhookId, {
+        provider: "vonage",
+        method: "GET",
+        payload: request.query,
+      });
+    } else {
+      logger.debug(
+        "Call event received but HA webhooks not configured — skipping forwarding",
+      );
+    }
   } catch (error) {
     logger.error("Voice event GET handler failed", {
       error: error.response?.data ?? error.message ?? String(error),
@@ -1034,11 +1141,17 @@ app.get("/vonage/event", async (request, response) => {
 
 app.post("/vonage/event", async (request, response) => {
   try {
-    await callHaWebhook(config.haCallEventWebhookId, {
-      provider: "vonage",
-      method: "POST",
-      payload: request.body,
-    });
+    if (features.haWebhooks) {
+      await callHaWebhook(config.haCallEventWebhookId, {
+        provider: "vonage",
+        method: "POST",
+        payload: request.body,
+      });
+    } else {
+      logger.debug(
+        "Call event received but HA webhooks not configured — skipping forwarding",
+      );
+    }
   } catch (error) {
     logger.error("Voice event POST handler failed", {
       error: error.response?.data ?? error.message ?? String(error),
@@ -1088,6 +1201,14 @@ app.post(
   outboundCallRateLimiter,
   requireInternalToken,
   async (request, response) => {
+    if (!features.outboundCalls) {
+      response.status(503).json({
+        error:
+          "Outbound calls are disabled — set VONAGE_APPLICATION_ID, VONAGE_PRIVATE_KEY_PATH, and BASE_URL to enable this feature",
+      });
+      return;
+    }
+
     try {
       const {
         to,
