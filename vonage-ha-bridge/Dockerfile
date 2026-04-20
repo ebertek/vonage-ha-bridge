@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # checkov:skip=CKV_DOCKER_3 Justification: UID is provided externally via build arg
 
-ARG NODE_VERSION=22-alpine
+ARG NODE_VERSION=alpine
 FROM node:${NODE_VERSION}
 
 ARG VERSION=dev
