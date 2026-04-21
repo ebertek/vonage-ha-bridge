@@ -1,7 +1,9 @@
 **/.DS_Store
 **/.dockerignore
 **/.env
+**/.env.example
 **/.git
+**/.github
 **/.gitignore
 **/Dockerfile*
 **/node_modules

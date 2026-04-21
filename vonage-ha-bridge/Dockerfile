@@ -14,7 +14,7 @@ ENV NODE_ENV=production
 
 LABEL org.opencontainers.image.description="Vonage to Home Assistant bridge for SMS and voice."
 LABEL org.opencontainers.image.documentation="https://github.com/ebertek/vonage-ha-bridge#readme"
-LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.source="https://github.com/ebertek/vonage-ha-bridge"
 LABEL org.opencontainers.image.title="Vonage HA Bridge"
 LABEL org.opencontainers.image.url="https://github.com/ebertek/vonage-ha-bridge"
