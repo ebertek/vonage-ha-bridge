@@ -383,6 +383,7 @@ const REDACTED_PARAMS = new Set([
   "msisdn",
   "api_secret",
   "api-secret",
+  "x-api-token",
 ]);
 
 function redactUrlParams(rawUrl) {
