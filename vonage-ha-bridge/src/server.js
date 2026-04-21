@@ -1,12 +1,9 @@
 import express from "express";
 import morgan from "morgan";
-import dotenv from "dotenv";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import axios from "axios";
 import jwt from "jsonwebtoken";
-
-dotenv.config();
 
 function normalizePhoneNumber(value) {
   let msisdn = String(value ?? "").trim();

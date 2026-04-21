@@ -52,7 +52,7 @@ flowchart LR
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20.6+
 - A [Vonage account](https://dashboard.vonage.com/) with an API key, secret, and a virtual number
 - For voice features: a Vonage application with a private key, linked to your number
 - For HA integration: a running Home Assistant instance with a long-lived access token
@@ -138,11 +138,11 @@ Required for: outbound TTS calls (`/api/call`), inbound call handling and forwar
 ## Running the Service
 
 ```bash
-# Development
-node server.js
+# Without an .env file (env vars already set in your shell)
+node src/server.js
 
-# With environment file
-node --env-file=.env server.js
+# With an .env file
+node --env-file=.env src/server.js
 ```
 
 Logs are emitted as newline-delimited JSON to stdout.
