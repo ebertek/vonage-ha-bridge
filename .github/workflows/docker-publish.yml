@@ -42,7 +42,9 @@ jobs:
 
       - name: Set version
         id: version
-        run: echo "version=2.2.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+        run: |
+          base=$(node -p "require('${{ env.APP_DIR }}/package.json').version.split('.').slice(0,2).join('.')")
+          echo "version=${base}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Set build date
         id: set_build_date
