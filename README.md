@@ -21,6 +21,7 @@ A lightweight Node.js bridge between [Vonage](https://www.vonage.com/) (formerly
 - [Home Assistant Setup](#home-assistant-setup)
 - [Security](#security)
 - [Docker](#docker)
+- [Alternatives](#alternatives)
 
 ---
 
@@ -372,3 +373,10 @@ docker build \
 ```
 
 A health check is built into the image and polls `/health` every 30 seconds.
+
+---
+
+## Alternatives
+
+* Easy-to-use Notify integration: [attilaszasz/vonage-homeassistant](https://github.com/attilaszasz/vonage-homeassistant)
+* First-party [vibe-coded](https://www.youtube.com/watch?v=GPKvOXJXX3I) integration: [codefoster/core](https://github.com/codefoster/core/tree/codefoster/vonage/homeassistant/components/vonage)
