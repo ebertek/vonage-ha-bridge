@@ -118,20 +118,21 @@ Required for: outbound TTS calls (`/api/call`), inbound call handling and forwar
 
 ### Optional — General
 
-| Variable                                | Default   | Description                                                       |
-| --------------------------------------- | --------- | ----------------------------------------------------------------- |
-| `PORT`                                  | `3000`    | Port to listen on                                                 |
-| `LOG_LEVEL`                             | `info`    | Log level: `debug`, `info`, `warning`, or `error`                 |
-| `OUTBOUND_TIMEOUT_S`                    | `10`      | Timeout for outbound HTTP requests (seconds)                      |
-| `ALLOWED_SMS_SENDERS`                   | _(all)_   | Comma-separated list of phone numbers allowed to send SMS         |
-| `SMS_MAX_LENGTH`                        | `1600`    | Maximum SMS message length                                        |
-| `VALIDATE_VONAGE_SMS_SIGNATURE`         | `false`   | Enable Vonage SMS signature verification                          |
-| `VONAGE_SIGNATURE_SECRET`               | _(none)_  | Required if signature validation is enabled                       |
-| `VONAGE_SIGNATURE_ALGORITHM`            | `md5hash` | Signature algorithm: `md5hash`, `md5`, `sha1`, `sha256`, `sha512` |
-| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3`       | Max outbound call requests per window                             |
-| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_S`     | `300`     | Rate limit window for outbound calls (seconds)                    |
-| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`       | Max outbound SMS requests per window                              |
-| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_S`      | `15`      | Rate limit window for outbound SMS (seconds)                      |
+| Variable                                | Default   | Description                                                                |
+| --------------------------------------- | --------- | -------------------------------------------------------------------------- |
+| `PORT`                                  | `3000`    | Port to listen on                                                          |
+| `LOG_LEVEL`                             | `info`    | Log level: `debug`, `info`, `warning`, or `error`                          |
+| `REDACT_LOGS`                           | `true`    | Redact sensitive query params (sig, api-key, msisdn, nonce) from HTTP logs |
+| `OUTBOUND_TIMEOUT_S`                    | `10`      | Timeout for outbound HTTP requests (seconds)                               |
+| `ALLOWED_SMS_SENDERS`                   | _(all)_   | Comma-separated list of phone numbers allowed to send SMS                  |
+| `SMS_MAX_LENGTH`                        | `1600`    | Maximum SMS message length                                                 |
+| `VALIDATE_VONAGE_SMS_SIGNATURE`         | `false`   | Enable Vonage SMS signature verification                                   |
+| `VONAGE_SIGNATURE_SECRET`               | _(none)_  | Required if signature validation is enabled                                |
+| `VONAGE_SIGNATURE_ALGORITHM`            | `md5hash` | Signature algorithm: `md5hash`, `md5`, `sha1`, `sha256`, `sha512`          |
+| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3`       | Max outbound call requests per window                                      |
+| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_S`     | `300`     | Rate limit window for outbound calls (seconds)                             |
+| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`       | Max outbound SMS requests per window                                       |
+| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_S`      | `15`      | Rate limit window for outbound SMS (seconds)                               |
 
 ---
 

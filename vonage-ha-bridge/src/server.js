@@ -96,6 +96,7 @@ const config = {
   validateVonageSmsSignature:
     (process.env.VALIDATE_VONAGE_SMS_SIGNATURE ?? "false").toLowerCase() ===
     "true",
+  redactLogs: (process.env.REDACT_LOGS ?? "true").toLowerCase() !== "false",
 };
 
 const LOG_LEVELS = {
@@ -240,6 +241,12 @@ function validateConfig() {
     errors.push(`BASE_URL must be a valid http/https URL: ${config.baseUrl}`);
   }
 
+  if (!config.redactLogs) {
+    warnings.push(
+      "REDACT_LOGS=false — sensitive parameters (sig, api-key, msisdn, nonce) will appear in HTTP logs",
+    );
+  }
+
   if (!config.haLanguage.trim()) {
     errors.push("HA_LANGUAGE must not be empty");
   }
@@ -368,6 +375,40 @@ validateConfig();
 
 const app = express();
 
+const REDACTED_PARAMS = new Set([
+  "sig",
+  "api-key",
+  "api_key",
+  "nonce",
+  "msisdn",
+  "api_secret",
+  "api-secret",
+]);
+
+function redactUrlParams(rawUrl) {
+  if (!rawUrl) {
+    return rawUrl;
+  }
+
+  try {
+    // URL constructor requires an absolute URL; use a dummy base
+    const url = new URL(rawUrl, "http://x");
+
+    for (const key of url.searchParams.keys()) {
+      if (REDACTED_PARAMS.has(key.toLowerCase())) {
+        url.searchParams.set(key, "[redacted]");
+      }
+    }
+
+    // Return only path + search, not the dummy origin; decode %5B%5D back to []
+    return (url.pathname + (url.search ?? ""))
+      .replaceAll("%5B", "[")
+      .replaceAll("%5D", "]");
+  } catch {
+    return rawUrl;
+  }
+}
+
 app.use(
   morgan(
     (tokens, request, response) =>
@@ -377,7 +418,9 @@ app.use(
         logger: "http",
         message: "HTTP request",
         method: tokens.method(request, response),
-        url: tokens.url(request, response),
+        url: config.redactLogs
+          ? redactUrlParams(tokens.url(request, response))
+          : tokens.url(request, response),
         status: Number(tokens.status(request, response)),
         response_time_ms: Number(tokens["response-time"](request, response)),
         remote_addr: tokens["remote-addr"](request, response),
