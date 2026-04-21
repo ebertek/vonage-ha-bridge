@@ -139,10 +139,10 @@ Required for: outbound TTS calls (`/api/call`), inbound call handling and forwar
 
 ```bash
 # Development
-node index.js
+node server.js
 
 # With environment file
-node --env-file=.env index.js
+node --env-file=.env server.js
 ```
 
 Logs are emitted as newline-delimited JSON to stdout.
@@ -155,17 +155,20 @@ Logs are emitted as newline-delimited JSON to stdout.
 
 These are called by Vonage and should be configured in your Vonage application dashboard.
 
-| Method     | Path             | Description                                              |
-| ---------- | ---------------- | -------------------------------------------------------- |
-| `GET/POST` | `/vonage/sms`    | Inbound SMS receiver                                     |
-| `GET/POST` | `/vonage/dlr`    | SMS delivery receipt handler                             |
-| `GET/POST` | `/vonage/answer` | Inbound call answer URL (returns NCCO)                   |
-| `GET/POST` | `/vonage/event`  | Inbound call event URL                                   |
-| `GET`      | `/ncco/talk`     | Returns a talk NCCO for outbound calls (used internally) |
+| Method     | Path             | Description                            |
+| ---------- | ---------------- | -------------------------------------- |
+| `GET/POST` | `/vonage/sms`    | Inbound SMS receiver                   |
+| `GET/POST` | `/vonage/dlr`    | SMS delivery receipt handler           |
+| `GET/POST` | `/vonage/answer` | Inbound call answer URL (returns NCCO) |
+| `GET/POST` | `/vonage/event`  | Inbound call event URL                 |
 
 ### Internal API Endpoints
 
 These require the `x-api-token` header set to your `INTERNAL_API_TOKEN`.
+
+#### `GET /ncco/talk`
+
+Returns a TTS NCCO used internally as the answer URL for outbound `"talk"` mode calls. The token is embedded in the URL automatically — this endpoint should not be called directly.
 
 #### `POST /api/send-sms`
 
@@ -209,11 +212,12 @@ Initiate an outbound phone call with a text-to-speech message.
 
 ### Utility Endpoints
 
-| Method | Path       | Description         |
-| ------ | ---------- | ------------------- |
-| `GET`  | `/`        | Service info        |
-| `GET`  | `/health`  | Health check        |
-| `GET`  | `/version` | Application version |
+| Method | Path      | Description  |
+| ------ | --------- | ------------ |
+| `GET`  | `/`       | Service info |
+| `GET`  | `/health` | Health check |
+
+`GET /version` returns the running application version and requires the `x-api-token` header.
 
 ---
 
@@ -311,7 +315,7 @@ mode: single
 
 ## Security
 
-- All `/api/*` endpoints require the `x-api-token` header.
+- All `/api/*` endpoints, `/ncco/talk`, and `/version` require the `x-api-token` header (or `x-api-token` query parameter for Vonage callbacks to `/ncco/talk`).
 - Inbound SMS can be restricted to specific senders via `ALLOWED_SMS_SENDERS`.
 - Vonage SMS signature validation can be enabled via `VALIDATE_VONAGE_SMS_SIGNATURE` for additional assurance that requests originate from Vonage.
 - Outbound SMS and call endpoints are rate-limited per destination number.

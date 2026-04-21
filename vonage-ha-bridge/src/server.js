@@ -341,26 +341,12 @@ function validateConfig() {
   }
 
   for (const warning of warnings) {
-    process.stderr.write(
-      `${JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "WARNING",
-        logger: "startup",
-        message: warning,
-      })}\n`,
-    );
+    log("warning", warning, { logger: "startup" });
   }
 
   if (errors.length > 0) {
     for (const error of errors) {
-      process.stderr.write(
-        `${JSON.stringify({
-          timestamp: new Date().toISOString(),
-          level: "ERROR",
-          logger: "startup",
-          message: error,
-        })}\n`,
-      );
+      log("error", error, { logger: "startup" });
     }
 
     throw new Error(
@@ -480,16 +466,26 @@ setInterval(cleanupRateLimitStore, 60_000).unref();
 const outboundSmsRateLimiter = createRateLimiter({
   windowMs: config.outboundSmsRateLimitWindowMs,
   maxRequests: config.outboundSmsRateLimitMaxRequests,
-  keyGenerator: (request) =>
-    normalizePhoneNumber(request.body?.to ?? "unknown"),
+  keyGenerator: (request) => {
+    try {
+      return normalizePhoneNumber(request.body?.to ?? "");
+    } catch {
+      return "invalid";
+    }
+  },
   label: "outbound-sms",
 });
 
 const outboundCallRateLimiter = createRateLimiter({
   windowMs: config.outboundCallRateLimitWindowMs,
   maxRequests: config.outboundCallRateLimitMaxRequests,
-  keyGenerator: (request) =>
-    normalizePhoneNumber(request.body?.to ?? "unknown"),
+  keyGenerator: (request) => {
+    try {
+      return normalizePhoneNumber(request.body?.to ?? "");
+    } catch {
+      return "invalid";
+    }
+  },
   label: "outbound-call",
 });
 
@@ -500,7 +496,13 @@ function sanitizeSmsText(value) {
     .slice(0, config.smsMaxLength);
 }
 
+let _cachedPrivateKey = null;
+
 function loadPrivateKey() {
+  if (_cachedPrivateKey) {
+    return _cachedPrivateKey;
+  }
+
   const privateKey = fs
     .readFileSync(config.vonagePrivateKeyPath, "utf8")
     .trim();
@@ -511,7 +513,8 @@ function loadPrivateKey() {
     );
   }
 
-  return privateKey;
+  _cachedPrivateKey = privateKey;
+  return _cachedPrivateKey;
 }
 
 function createVonageJwt() {
@@ -546,9 +549,19 @@ function isAuthorizedSender(msisdn) {
 }
 
 function requireInternalToken(request, response, next) {
-  const provided = request.header("x-api-token");
+  const provided =
+    request.header("x-api-token") ?? request.query["x-api-token"] ?? "";
 
-  if (provided !== config.internalApiToken) {
+  let authorized = false;
+  try {
+    const a = Buffer.from(provided);
+    const b = Buffer.from(config.internalApiToken);
+    authorized = a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    authorized = false;
+  }
+
+  if (!authorized) {
     logger.warn("Unauthorized internal API access attempt", {
       remote_addr: request.ip,
       path: request.path,
@@ -821,17 +834,19 @@ async function createOutboundCall({
   let payload;
 
   if (mode === "connect") {
-    const endpoint = {
+    const connectEndpoint = {
       type: "phone",
       number: toNumber,
+      ...(dtmfAnswer ? { dtmfAnswer: String(dtmfAnswer) } : {}),
     };
 
-    if (dtmfAnswer) {
-      endpoint.dtmfAnswer = String(dtmfAnswer);
-    }
-
     payload = {
-      to: [endpoint],
+      to: [
+        {
+          type: "phone",
+          number: toNumber,
+        },
+      ],
       from: {
         type: "phone",
         number: fromNumber,
@@ -844,6 +859,10 @@ async function createOutboundCall({
             .slice(0, 1400),
           ...(language ? { language } : {}),
           ...(style !== undefined ? { style } : {}),
+        },
+        {
+          action: "connect",
+          endpoint: [connectEndpoint],
         },
       ],
       event_url: [`${config.baseUrl}/vonage/event`],
@@ -865,7 +884,7 @@ async function createOutboundCall({
         number: fromNumber,
       },
       answer_url: [
-        `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(talkText)}`,
+        `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(talkText)}&x-api-token=${encodeURIComponent(config.internalApiToken)}`,
       ],
       event_url: [`${config.baseUrl}/vonage/event`],
     };
@@ -948,7 +967,7 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
-app.get("/version", (_request, response) => {
+app.get("/version", requireInternalToken, (_request, response) => {
   response.json({
     version: config.version,
   });
@@ -1001,11 +1020,18 @@ async function handleInboundSms(request, response) {
 
     logger.info("Replying to inbound SMS", { to: from, reply_text: replyText });
 
-    await sendSms({
-      to: from,
-      text: replyText,
-      clientRef: `inbound-reply-${Date.now()}`,
-    });
+    try {
+      await sendSms({
+        to: from,
+        text: replyText,
+        clientRef: `inbound-reply-${Date.now()}`,
+      });
+    } catch (error) {
+      logger.error("Failed to send inbound SMS reply", {
+        to: from,
+        error: error.response?.data ?? error.message ?? String(error),
+      });
+    }
 
     response.status(200).json({ ok: true });
   } catch (error) {
@@ -1058,7 +1084,7 @@ app.post("/vonage/sms", handleInboundSms);
 app.get("/vonage/dlr", handleSmsDlr);
 app.post("/vonage/dlr", handleSmsDlr);
 
-app.get("/vonage/answer", (_request, response) => {
+function handleAnswer(_request, response) {
   try {
     response.json(buildInboundCallNcco());
   } catch (error) {
@@ -1067,26 +1093,18 @@ app.get("/vonage/answer", (_request, response) => {
     });
     response.status(500).json(buildTalkNcco("An internal error occurred."));
   }
-});
+}
 
-app.post("/vonage/answer", (_request, response) => {
-  try {
-    response.json(buildInboundCallNcco());
-  } catch (error) {
-    logger.error("Answer URL failed", {
-      error: error.message ?? String(error),
-    });
-    response.status(500).json(buildTalkNcco("An internal error occurred."));
-  }
-});
+app.get("/vonage/answer", handleAnswer);
+app.post("/vonage/answer", handleAnswer);
 
-app.get("/vonage/event", async (request, response) => {
+async function handleCallEvent(request, response) {
   try {
     if (features.haWebhooks) {
       await callHaWebhook(config.haCallEventWebhookId, {
         provider: "vonage",
-        method: "GET",
-        payload: request.query,
+        method: request.method,
+        payload: request.method === "GET" ? request.query : request.body,
       });
     } else {
       logger.debug(
@@ -1094,37 +1112,18 @@ app.get("/vonage/event", async (request, response) => {
       );
     }
   } catch (error) {
-    logger.error("Voice event GET handler failed", {
+    logger.error("Voice event handler failed", {
       error: error.response?.data ?? error.message ?? String(error),
     });
   }
 
   response.status(200).json({ ok: true });
-});
+}
 
-app.post("/vonage/event", async (request, response) => {
-  try {
-    if (features.haWebhooks) {
-      await callHaWebhook(config.haCallEventWebhookId, {
-        provider: "vonage",
-        method: "POST",
-        payload: request.body,
-      });
-    } else {
-      logger.debug(
-        "Call event received but HA webhooks not configured — skipping forwarding",
-      );
-    }
-  } catch (error) {
-    logger.error("Voice event POST handler failed", {
-      error: error.response?.data ?? error.message ?? String(error),
-    });
-  }
+app.get("/vonage/event", handleCallEvent);
+app.post("/vonage/event", handleCallEvent);
 
-  response.status(200).json({ ok: true });
-});
-
-app.get("/ncco/talk", (request, response) => {
+app.get("/ncco/talk", requireInternalToken, (request, response) => {
   const text =
     request.query.text ?? "This is an automated call from Home Assistant.";
   response.json(buildTalkNcco(text));
