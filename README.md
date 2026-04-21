@@ -254,14 +254,14 @@ rest_command:
     headers:
       x-api-token: !secret vonage_bridge_api_token
     method: POST
-    payload: >
+    payload: >-
       {
-        "to": "{{ to }}",
-        "text": "{{ text }}",
-        "mode": "{{ mode | default('talk') }}",
-        "language": "{{ language | default('en-US') }}",
-        "style": "{{ style | default('0') }}",
-        "dtmf_answer": "{{ dtmf_answer | default('') }}"
+        "to": {{ to | tojson }},
+        "text": {{ text | tojson }},
+        "mode": {{ mode | default('talk') | tojson }},
+        "language": {{ language | default('en-US') | tojson }},
+        "style": {{ style | default(0) }},
+        "dtmf_answer": {{ dtmf_answer | default('') | tojson }}
       }
     url: "http://localhost:3000/api/call"
   send_sms:
@@ -269,10 +269,10 @@ rest_command:
     headers:
       x-api-token: !secret vonage_bridge_api_token
     method: POST
-    payload: >
+    payload: >-
       {
-        "to": "{{ to }}",
-        "text": "{{ text }}"
+        "to": {{ to | tojson }},
+        "text": {{ text | tojson }}
       }
     url: "http://localhost:3000/api/send-sms"
 ```
@@ -292,24 +292,24 @@ triggers:
   - trigger: state
     entity_id:
       - binary_sensor.water_leak
-    to:
-      - "on"
+    from: "off"
+    to: "on"
 conditions: []
+variables:
+  alert_number: "46701234567"
+  alert_message: Water leak detected!
 actions:
-  - action: notify.hass
-    data:
-      message: "Water leak detected!"
-      target: "1296883565967179786"
-  - action: rest_command.make_call
-    data:
-      to: "46701234567"
-      text: "Water leak detected!"
-      mode: "talk"
-  - action: rest_command.send_sms
-    data:
-      to: "46701234567"
-      text: "Water leak detected!"
-mode: single
+  - parallel:
+    - action: rest_command.send_sms
+      data:
+        to: "{{ alert_number }}"
+        text: "{{ alert_message }}"
+    - action: rest_command.make_call
+      data:
+        to: "{{ alert_number }}"
+        text: "{{ alert_message }}"
+        mode: talk
+mode: restart
 ```
 
 ---
