@@ -1011,6 +1011,13 @@ app.get("/health", (_request, response) => {
 app.get("/version", requireInternalToken, (_request, response) => {
   response.json({
     version: config.version,
+    features: {
+      outbound_sms: features.sms,
+      inbound_sms_to_assist: features.inboundSms,
+      outbound_calls: features.outboundCalls,
+      inbound_call_forwarding: features.inboundCallForwarding,
+      ha_webhooks: features.haWebhooks,
+    },
   });
 });
 
