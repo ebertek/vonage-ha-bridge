@@ -1322,6 +1322,7 @@ app.use((_request, response) => {
 });
 
 // Global error handler — must be last, and must have exactly 4 parameters
+// eslint-disable-next-line no-unused-vars
 app.use((error, _request, response, _next) => {
   logger.error("Unhandled application error", {
     error: error?.message ?? String(error),
