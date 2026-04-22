@@ -459,6 +459,14 @@ function createRateLimiter({ windowMs, maxRequests, keyGenerator, label }) {
     const now = Date.now();
     const key = keyGenerator(request);
     const storeKey = `${label}:${key}`;
+
+    // Prevent unbounded growth under adversarial input
+    if (rateLimitStore.size >= 10_000) {
+      logger.warn("Rate limit store full — rejecting request", { label, key });
+      response.status(429).json({ error: "Too many requests" });
+      return;
+    }
+
     const entry = rateLimitStore.get(storeKey);
 
     if (!entry || now > entry.resetAt) {
