@@ -302,16 +302,32 @@ variables:
   alert_message: Water leak detected!
 actions:
   - parallel:
-      - action: rest_command.send_sms
-        data:
-          to: "{{ alert_number }}"
-          text: "{{ alert_message }}"
       - action: rest_command.make_call
         data:
           to: "{{ alert_number }}"
           text: "{{ alert_message }}"
-          mode: talk
+      - action: rest_command.send_sms
+        data:
+          to: "{{ alert_number }}"
+          text: "{{ alert_message }}"
 mode: restart
+```
+
+If you want to monitor your Vonage account balance, you can also add this REST sensor in your Home Assistant's `configuration.yaml` file:
+
+```yaml
+sensor:
+  - platform: rest
+    device_class: monetary
+    name: Vonage Account Balance
+    params:
+      api_key: !secret vonage_api_key
+      api_secret: !secret vonage_api_secret
+    resource: "https://rest.nexmo.com/account/get-balance"
+    scan_interval: 3600
+    unique_id: vonage_account_balance
+    unit_of_measurement: "EUR"
+    value_template: "{{ value_json.value | round(2) }}"
 ```
 
 ---
