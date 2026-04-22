@@ -925,7 +925,7 @@ async function createOutboundCall({
         number: fromNumber,
       },
       answer_url: [
-        `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(talkText)}&x-api-token=${encodeURIComponent(config.internalApiToken)}`,
+        `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(talkText)}&language=${encodeURIComponent(language)}&style=${encodeURIComponent(style)}&x-api-token=${encodeURIComponent(config.internalApiToken)}`,
       ],
       event_url: [`${config.baseUrl}/vonage/event`],
     };
@@ -986,13 +986,17 @@ function buildInboundCallNcco() {
   ];
 }
 
-function buildTalkNcco(text) {
+function buildTalkNcco(text, language, style) {
   return [
     {
       action: "talk",
       text: String(text ?? "")
         .trim()
         .slice(0, 1400),
+      ...(language ? { language } : {}),
+      ...(style !== undefined && style !== null && !Number.isNaN(Number(style))
+        ? { style: Number(style) }
+        : {}),
     },
   ];
 }
@@ -1174,7 +1178,9 @@ app.post("/vonage/event", handleCallEvent);
 app.get("/ncco/talk", requireInternalToken, (request, response) => {
   const text =
     request.query.text ?? "This is an automated call from Home Assistant.";
-  response.json(buildTalkNcco(text));
+  const language = request.query.language || config.defaultVoiceLanguage;
+  const style = request.query.style ?? config.defaultVoiceStyle;
+  response.json(buildTalkNcco(text, language, style));
 });
 
 app.post(

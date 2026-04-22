@@ -106,6 +106,7 @@ Required for: inbound SMS → Assist → reply, HA webhook forwarding (call even
 Both `VONAGE_APPLICATION_ID` and `VONAGE_PRIVATE_KEY_PATH` must be set together or left unset.
 Required for: outbound TTS calls (`/api/call`), inbound call handling and forwarding.
 `BASE_URL` is additionally required for outbound calls.
+See [Vonage's documentation](https://developer.vonage.com/en/voice/voice-api/concepts/text-to-speech#supported-languages) for the list of available languages and voice styles.
 
 | Variable                  | Default                    | Description                                                                 |
 | ------------------------- | -------------------------- | --------------------------------------------------------------------------- |
