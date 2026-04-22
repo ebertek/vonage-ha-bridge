@@ -513,6 +513,8 @@ function cleanupRateLimitStore() {
       rateLimitStore.delete(key);
     }
   }
+
+  logger.debug("Rate limit store cleanup", { size: rateLimitStore.size });
 }
 
 setInterval(cleanupRateLimitStore, 60_000).unref();
@@ -1042,7 +1044,10 @@ app.get("/version", requireInternalToken, (_request, response) => {
 async function handleInboundSms(request, response) {
   try {
     if (!isValidVonageSmsSignature(request)) {
-      logger.warn("Rejected inbound SMS due to invalid Vonage signature");
+      logger.warn("Rejected inbound SMS due to invalid Vonage signature", {
+        from: payload.msisdn ?? payload.from ?? "unknown",
+        remote_addr: request.ip,
+      });
       response.status(403).json({ error: "Invalid signature" });
       return;
     }
@@ -1076,6 +1081,7 @@ async function handleInboundSms(request, response) {
 
     try {
       const assistResponse = await callHaConversation({ from, text });
+      logger.debug("HA Assist raw response", { response: assistResponse });
       replyText = extractAssistReply(assistResponse);
     } catch (error) {
       logger.error("Home Assistant Assist request failed", {
@@ -1123,6 +1129,10 @@ async function handleSmsDlr(request, response) {
     });
 
     if (features.haWebhooks) {
+      logger.debug("Forwarding to HA webhook", {
+        webhook_id: config.haSmsDlrWebhookId,
+        payload,
+      });
       await callHaWebhook(config.haSmsDlrWebhookId, {
         provider: "vonage",
         type: "sms_dlr",
@@ -1167,6 +1177,10 @@ app.post("/vonage/answer", handleAnswer);
 async function handleCallEvent(request, response) {
   try {
     if (features.haWebhooks) {
+      logger.debug("Forwarding to HA webhook", {
+        webhook_id: config.haCallEventWebhookId,
+        payload,
+      });
       await callHaWebhook(config.haCallEventWebhookId, {
         provider: "vonage",
         method: request.method,
