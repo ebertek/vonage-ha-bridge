@@ -862,6 +862,7 @@ async function sendSms({ to, text, clientRef }) {
     message_id: message["message-id"],
     status: message.status,
     client_ref: message["client-ref"] ?? clientRef ?? null,
+    ...(config.redactLogs ? {} : { text }),
   });
 
   return result.data;
