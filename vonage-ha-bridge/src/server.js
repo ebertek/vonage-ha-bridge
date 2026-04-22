@@ -1044,8 +1044,9 @@ app.get("/version", requireInternalToken, (_request, response) => {
 async function handleInboundSms(request, response) {
   try {
     if (!isValidVonageSmsSignature(request)) {
+      const rejectedPayload = request.method === "GET" ? request.query : request.body;
       logger.warn("Rejected inbound SMS due to invalid Vonage signature", {
-        from: payload.msisdn ?? payload.from ?? "unknown",
+        from: rejectedPayload.msisdn ?? rejectedPayload.from ?? "unknown",
         remote_addr: request.ip,
       });
       response.status(403).json({ error: "Invalid signature" });
@@ -1081,7 +1082,7 @@ async function handleInboundSms(request, response) {
 
     try {
       const assistResponse = await callHaConversation({ from, text });
-      logger.debug("HA Assist raw response", { response: assistResponse });
+      logger.debug("HA Assist raw response", { assist_response: assistResponse });
       replyText = extractAssistReply(assistResponse);
     } catch (error) {
       logger.error("Home Assistant Assist request failed", {
