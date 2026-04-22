@@ -507,14 +507,21 @@ function createRateLimiter({ windowMs, maxRequests, keyGenerator, label }) {
 
 function cleanupRateLimitStore() {
   const now = Date.now();
+  let deleted = 0;
 
   for (const [key, entry] of rateLimitStore.entries()) {
     if (now > entry.resetAt) {
       rateLimitStore.delete(key);
+      deleted++;
     }
   }
 
-  logger.debug("Rate limit store cleanup", { size: rateLimitStore.size });
+  if (deleted > 0) {
+    logger.debug("Rate limit store cleanup", {
+      deleted,
+      size: rateLimitStore.size,
+    });
+  }
 }
 
 setInterval(cleanupRateLimitStore, 60_000).unref();
