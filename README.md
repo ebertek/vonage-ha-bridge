@@ -302,15 +302,15 @@ variables:
   alert_message: Water leak detected!
 actions:
   - parallel:
-    - action: rest_command.send_sms
-      data:
-        to: "{{ alert_number }}"
-        text: "{{ alert_message }}"
-    - action: rest_command.make_call
-      data:
-        to: "{{ alert_number }}"
-        text: "{{ alert_message }}"
-        mode: talk
+      - action: rest_command.send_sms
+        data:
+          to: "{{ alert_number }}"
+          text: "{{ alert_message }}"
+      - action: rest_command.make_call
+        data:
+          to: "{{ alert_number }}"
+          text: "{{ alert_message }}"
+          mode: talk
 mode: restart
 ```
 
@@ -379,5 +379,5 @@ A health check is built into the image and polls `/health` every 30 seconds.
 
 ## Alternatives
 
-* Easy-to-use Notify integration: [attilaszasz/vonage-homeassistant](https://github.com/attilaszasz/vonage-homeassistant)
-* First-party [vibe-coded](https://www.youtube.com/watch?v=GPKvOXJXX3I) integration: [codefoster/core](https://github.com/codefoster/core/tree/codefoster/vonage/homeassistant/components/vonage)
+- Easy-to-use Notify integration: [attilaszasz/vonage-homeassistant](https://github.com/attilaszasz/vonage-homeassistant)
+- First-party [vibe-coded](https://www.youtube.com/watch?v=GPKvOXJXX3I) integration: [codefoster/core](https://github.com/codefoster/core/tree/codefoster/vonage/homeassistant/components/vonage)
