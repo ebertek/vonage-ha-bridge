@@ -319,6 +319,8 @@ If you want to monitor your Vonage account balance, you can also add this REST s
 sensor:
   - platform: rest
     device_class: monetary
+    json_attributes:
+      - autoReload
     name: Vonage Account Balance
     params:
       api_key: !secret vonage_api_key
