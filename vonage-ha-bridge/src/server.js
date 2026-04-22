@@ -4,6 +4,8 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import axios from "axios";
 import jwt from "jsonwebtoken";
+import { Agent as HttpAgent } from "node:http";
+import { Agent as HttpsAgent } from "node:https";
 
 function normalizePhoneNumber(value) {
   let msisdn = String(value ?? "").trim();
@@ -374,6 +376,7 @@ function validateConfig() {
 validateConfig();
 
 const app = express();
+app.set("trust proxy", true);
 
 const REDACTED_PARAMS = new Set([
   "sig",
@@ -433,8 +436,8 @@ app.use(
   ),
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "32kb" }));
+app.use(express.urlencoded({ extended: true, limit: "32kb" }));
 
 if (!config.baseUrl) {
   logger.warn("BASE_URL not set — outbound calls are disabled");
@@ -450,6 +453,8 @@ logger.info("Feature summary", {
 
 const http = axios.create({
   timeout: config.outboundTimeoutMs,
+  httpAgent: new HttpAgent({ keepAlive: true }),
+  httpsAgent: new HttpsAgent({ keepAlive: true }),
 });
 
 const rateLimitStore = new Map();
@@ -598,8 +603,8 @@ function isAuthorizedSender(msisdn) {
 }
 
 function requireInternalToken(request, response, next) {
-  const provided =
-    request.header("x-api-token") ?? request.query["x-api-token"] ?? "";
+  const raw = request.header("x-api-token") ?? request.query["x-api-token"];
+  const provided = Array.isArray(raw) ? "" : (raw ?? "");
 
   let authorized = false;
   try {
@@ -1193,9 +1198,17 @@ app.get("/ncco/talk", requireInternalToken, (request, response) => {
 
 app.post(
   "/api/send-sms",
-  outboundSmsRateLimiter,
   requireInternalToken,
+  outboundSmsRateLimiter,
   async (request, response) => {
+    if (!features.sms) {
+      response.status(503).json({
+        error:
+          "Outbound SMS is disabled — set VONAGE_API_KEY, VONAGE_API_SECRET, and VONAGE_FROM_NUMBER",
+      });
+      return;
+    }
+
     try {
       const { to, text, clientRef } = request.body;
 
@@ -1209,12 +1222,26 @@ app.post(
       const result = await sendSms({ to, text, clientRef });
       response.json(result);
     } catch (error) {
-      logger.error("Outbound SMS failed", {
-        error: error.response?.data ?? error.message ?? String(error),
-      });
+      // Vonage rejected the request (4xx from their API)
+      if (error.response?.status >= 400 && error.response?.status < 500) {
+        response.status(400).json({
+          error: "Vonage rejected the request",
+          details: error.response?.data ?? error.message,
+        });
+        return;
+      }
+      // Vonage unreachable or 5xx
+      if (error.response || error.code === "ECONNABORTED") {
+        response.status(502).json({
+          error: "Vonage API request failed",
+          details: error.response?.data ?? error.message,
+        });
+        return;
+      }
+      // Local fault (e.g. JWT signing, phone normalization)
       response.status(500).json({
-        error: "Outbound SMS failed",
-        details: error.response?.data ?? error.message,
+        error: "Internal error",
+        details: error.message,
       });
     }
   },
@@ -1222,8 +1249,8 @@ app.post(
 
 app.post(
   "/api/call",
-  outboundCallRateLimiter,
   requireInternalToken,
+  outboundCallRateLimiter,
   async (request, response) => {
     if (!features.outboundCalls) {
       response.status(503).json({
@@ -1265,12 +1292,26 @@ app.post(
 
       response.json(result);
     } catch (error) {
-      logger.error("Outbound call failed", {
-        error: error.response?.data ?? error.message ?? String(error),
-      });
+      // Vonage rejected the request (4xx from their API)
+      if (error.response?.status >= 400 && error.response?.status < 500) {
+        response.status(400).json({
+          error: "Vonage rejected the request",
+          details: error.response?.data ?? error.message,
+        });
+        return;
+      }
+      // Vonage unreachable or 5xx
+      if (error.response || error.code === "ECONNABORTED") {
+        response.status(502).json({
+          error: "Vonage API request failed",
+          details: error.response?.data ?? error.message,
+        });
+        return;
+      }
+      // Local fault (e.g. JWT signing, phone normalization)
       response.status(500).json({
-        error: "Outbound call failed",
-        details: error.response?.data ?? error.message,
+        error: "Internal error",
+        details: error.message,
       });
     }
   },
@@ -1278,6 +1319,14 @@ app.post(
 
 app.use((_request, response) => {
   response.status(404).json({ error: "Not found" });
+});
+
+// Global error handler — must be last, and must have exactly 4 parameters
+app.use((error, _request, response, _next) => {
+  logger.error("Unhandled application error", {
+    error: error?.message ?? String(error),
+  });
+  response.status(500).json({ error: "Internal server error" });
 });
 
 const server = app.listen(config.port, () => {
