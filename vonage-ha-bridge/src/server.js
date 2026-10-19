@@ -465,24 +465,40 @@ function createRateLimiter({ windowMs, maxRequests, keyGenerator, label }) {
     const key = keyGenerator(request);
     const storeKey = `${label}:${key}`;
 
-    // Prevent unbounded growth under adversarial input
-    if (rateLimitStore.size >= 10_000) {
-      logger.warn("Rate limit store full — rejecting request", { label, key });
-      response.status(429).json({ error: "Too many requests" });
-      return;
+    let entry = rateLimitStore.get(storeKey);
+
+    // Remove expired entries so they no longer count toward capacity
+    if (entry && now >= entry.resetAt) {
+      rateLimitStore.delete(storeKey);
+      entry = undefined;
     }
 
-    const entry = rateLimitStore.get(storeKey);
+    // Only check capacity when inserting a new entry
+    if (!entry) {
+      // Reclaim expired entries before rejecting new clients
+      if (rateLimitStore.size >= 10_000) {
+        cleanupRateLimitStore();
+      }
 
-    if (!entry || now > entry.resetAt) {
+      if (rateLimitStore.size >= 10_000) {
+        logger.warn("Rate limit store full — rejecting request", {
+          label,
+          key,
+        });
+        response.status(429).json({ error: "Too many requests" });
+        return;
+      }
+
       rateLimitStore.set(storeKey, {
         count: 1,
         resetAt: now + windowMs,
       });
+
       next();
       return;
     }
 
+    // Existing entry: enforce its rate limit regardless of store capacity
     if (entry.count >= maxRequests) {
       const retryAfterSeconds = Math.ceil((entry.resetAt - now) / 1000);
 
@@ -510,7 +526,7 @@ function cleanupRateLimitStore() {
   let deleted = 0;
 
   for (const [key, entry] of rateLimitStore.entries()) {
-    if (now > entry.resetAt) {
+    if (now >= entry.resetAt) {
       rateLimitStore.delete(key);
       deleted++;
     }
