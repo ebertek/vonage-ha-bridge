@@ -29,17 +29,17 @@ A lightweight Node.js bridge between [Vonage](https://www.vonage.com/) (formerly
 
 ```mermaid
 flowchart LR
-    SMS["Inbound SMS"] --> SMS_EP["/vonage/sms/"]
+    SMS["Inbound SMS"] --> SMS_EP["/vonage/sms"]
     SMS_EP --> HA["HA Assist"]
     HA --> SMS_REPLY["SMS reply to sender"]
 
-    CALL["Inbound Call"] --> ANSWER_EP["/vonage/answer/"]
+    CALL["Inbound Call"] --> ANSWER_EP["/vonage/answer"]
     ANSWER_EP --> NCCO["NCCO: forward to SIP/phone"]
 
-    EVENTS["Call Events"] --> EVENT_EP["/vonage/event/"]
+    EVENTS["Call Events"] --> EVENT_EP["/vonage/event"]
     EVENT_EP --> HA_WEBHOOK1["HA webhook"]
 
-    DLR["SMS DLR"] --> DLR_EP["/vonage/dlr/"]
+    DLR["SMS DLR"] --> DLR_EP["/vonage/dlr"]
     DLR_EP --> HA_WEBHOOK2["HA webhook"]
 
     HA_OUT["Home Assistant"] --> SEND_SMS["POST /api/send-sms"]
@@ -53,7 +53,7 @@ flowchart LR
 
 ## Prerequisites
 
-- Node.js 20.6+
+- Node.js 26.x
 - A [Vonage account](https://dashboard.vonage.com/) with an API key, secret, and a virtual number
 - For voice features: a Vonage application with a private key, linked to your number
 - For HA integration: a running Home Assistant instance with a long-lived access token
