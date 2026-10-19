@@ -19,21 +19,18 @@ jobs:
     permissions:
       contents: read
       packages: read
-      # To report GitHub Actions status checks
       statuses: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
-          # super-linter needs the full git history to get the
-          # list of files that changed across commits
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Super-Linter
         uses: super-linter/super-linter/slim@v9.0.0 # x-release-please-version
         env:
-          # To report GitHub Actions status checks
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VALIDATE_BIOME_FORMAT: false
           VALIDATE_GIT_COMMITLINT: false
@@ -42,3 +39,51 @@ jobs:
           VALIDATE_NATURAL_LANGUAGE: false
           VALIDATE_PYTHON_RUFF_FORMAT: false
           VALIDATE_SPELL_CODESPELL: false
+
+  docker-runtime:
+    name: Docker - Runtime Validation
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./vonage-ha-bridge
+          file: ./vonage-ha-bridge/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          pull: true
+          tags: vonage-ha-bridge:runtime-test
+
+      - name: Verify Node.js runtime
+        run: |
+          docker run --rm \
+            --entrypoint node \
+            vonage-ha-bridge:runtime-test \
+            --version
+
+      - name: Verify shared libraries
+        run: |
+          docker run --rm \
+            --entrypoint /bin/sh \
+            vonage-ha-bridge:runtime-test \
+            -c 'ldd /usr/local/bin/node'
+
+      - name: Verify application syntax
+        run: |
+          docker run --rm \
+            --entrypoint node \
+            vonage-ha-bridge:runtime-test \
+            --check src/server.js
