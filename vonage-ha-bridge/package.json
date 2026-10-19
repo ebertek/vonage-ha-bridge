@@ -1,6 +1,6 @@
 {
   "name": "vonage-ha-bridge",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Vonage to Home Assistant bridge for SMS and voice",
   "type": "module",
   "main": "src/server.js",
@@ -8,9 +8,12 @@
     "start": "node src/server.js"
   },
   "dependencies": {
-    "axios": "^1.11.0",
-    "express": "^5.0.0",
-    "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0"
+    "axios": "^1.20.0",
+    "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.12.1"
+  },
+  "engines": {
+    "node": ">=26 <27"
   }
 }
