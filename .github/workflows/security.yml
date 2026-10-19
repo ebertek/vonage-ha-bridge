@@ -31,3 +31,41 @@ jobs:
           format: table
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           exit-code: "0"
+
+  trivy-image:
+    name: Trivy - Container Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image for security scanning
+        uses: docker/build-push-action@v7
+        with:
+          context: ./vonage-ha-bridge
+          file: ./vonage-ha-bridge/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          pull: true
+          tags: vonage-ha-bridge:security-scan
+          build-args: |
+            DEPENDENCY_REFRESH=${{ github.run_id }}
+
+      - name: Scan container image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: vonage-ha-bridge:security-scan
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
