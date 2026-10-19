@@ -38,9 +38,11 @@ LABEL org.opencontainers.image.description="Vonage to Home Assistant bridge for 
       org.opencontainers.image.revision="${GITHUB_SHA}" \
       org.opencontainers.image.version="${VERSION}"
 
+# hadolint ignore=DL3018
 RUN apk add --no-cache libstdc++ dumb-init \
-    && addgroup -g "${UID}" appuser \
-    && adduser -D -H -s /sbin/nologin -u "${UID}" -G appuser appuser
+    && addgroup -S -g "${UID}" appuser \
+    && adduser -S -D -H -s /sbin/nologin \
+        -u "${UID}" -G appuser appuser
 
 WORKDIR /app
 
