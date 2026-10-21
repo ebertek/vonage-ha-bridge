@@ -57,7 +57,7 @@ USER ${UID}
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:3000/health"]
+    CMD ["wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/health"]
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["node", "src/server.js"]
