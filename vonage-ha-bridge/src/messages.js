@@ -14,8 +14,7 @@ export function buildMessagesSmsPayload({ from, to, text, clientRef }) {
 
 export function parseInboundSms(payload) {
   if (
-    !payload ||
-    payload.channel !== "sms" ||
+    payload?.channel !== "sms" ||
     typeof payload.message_uuid !== "string" ||
     typeof payload.from !== "string" ||
     typeof payload.to !== "string" ||
