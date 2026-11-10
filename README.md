@@ -29,7 +29,7 @@ A lightweight Node.js bridge between [Vonage](https://www.vonage.com/) (formerly
 
 ```mermaid
 flowchart LR
-    SMS["Inbound SMS"] --> SMS_EP["/vonage/sms"]
+    SMS["Inbound SMS"] --> SMS_EP["/vonage/inbound-message"]
     SMS_EP --> HA["HA Assist"]
     HA --> SMS_REPLY["SMS reply to sender"]
 
@@ -39,11 +39,11 @@ flowchart LR
     EVENTS["Call Events"] --> EVENT_EP["/vonage/event"]
     EVENT_EP --> HA_WEBHOOK1["HA webhook"]
 
-    DLR["SMS DLR"] --> DLR_EP["/vonage/dlr"]
+    DLR["SMS DLR"] --> DLR_EP["/vonage/message-status"]
     DLR_EP --> HA_WEBHOOK2["HA webhook"]
 
     HA_OUT["Home Assistant"] --> SEND_SMS["POST /api/send-sms"]
-    SEND_SMS --> VONAGE_SMS["Vonage SMS API"]
+    SEND_SMS --> VONAGE_SMS["Vonage Messages API v1"]
 
     HA_OUT --> CALL_API["POST /api/call"]
     CALL_API --> VONAGE_VOICE["Vonage Voice API (TTS call)"]
@@ -54,10 +54,11 @@ flowchart LR
 ## Prerequisites
 
 - Node.js 26.x
-- A [Vonage account](https://dashboard.vonage.com/) with an API key, secret, and a virtual number
-- For voice features: a Vonage application with a private key, linked to your number
+- A [Vonage account](https://dashboard.vonage.com/) with an API key, signature secret, and SMS-capable virtual number
+- A Vonage Application with Messages capability (v1), application ID, and RSA private key, linked to the number
+- For calls: enable the Voice capability in the same application
 - For HA integration: a running Home Assistant instance with a long-lived access token
-- A publicly reachable HTTPS URL for Vonage webhooks (e.g. via a reverse proxy or ngrok) — required for voice only
+- A publicly reachable HTTPS URL for Vonage webhooks (e.g. via a reverse proxy or ngrok) — required for Messages webhooks and voice
 
 ---
 
@@ -65,7 +66,7 @@ flowchart LR
 
 ```bash
 git clone https://github.com/ebertek/vonage-ha-bridge.git
-cd vonage-ha-bridge
+cd vonage-ha-bridge/vonage-ha-bridge
 npm install
 ```
 
@@ -73,18 +74,23 @@ npm install
 
 ## Configuration
 
-All configuration is via environment variables. Copy `.env.example` to `.env` and fill in the values.
+All configuration is via environment variables. Copy the repository-root `.env.example` to your deployment environment and fill in the values. Mount the application private key read-only.
 
 ### Required
 
-Only four variables are strictly required. Everything else unlocks optional features.
+The Vonage Application is used for SMS and, optionally, Voice. Webhooks are signed
+with your **account signature secret**, not your API secret or application private key.
 
-| Variable             | Description                                                   |
-| -------------------- | ------------------------------------------------------------- |
-| `VONAGE_API_KEY`     | Vonage API key                                                |
-| `VONAGE_API_SECRET`  | Vonage API secret                                             |
-| `VONAGE_FROM_NUMBER` | Your Vonage number (digits only, e.g. `46701234567`)          |
-| `INTERNAL_API_TOKEN` | A secret token for authenticating calls to `/api/*` endpoints |
+| Variable | Description |
+| --- | --- |
+| `VONAGE_API_KEY` | Vonage account API key (for signed webhook JWT validation) |
+| `VONAGE_APPLICATION_ID` | ID of the Messages-enabled Vonage Application |
+| `VONAGE_PRIVATE_KEY_PATH` | Path to its RSA private key (default: `/run/secrets/private.key`; file must exist) |
+| `VONAGE_SIGNATURE_SECRET` | Account signature secret from Vonage API Settings (for HS256 signed webhooks) |
+| `VONAGE_FROM_NUMBER` | Vonage SMS-capable number, country code and digits only |
+| `INTERNAL_API_TOKEN` | Strong secret for authenticating requests to `/api/*` |
+
+`VONAGE_API_SECRET` is no longer used by the bridge for SMS sending.
 
 ### Optional — Home Assistant
 
@@ -103,15 +109,11 @@ Required for: inbound SMS → Assist → reply, HA webhook forwarding (call even
 
 ### Optional — Voice
 
-Both `VONAGE_APPLICATION_ID` and `VONAGE_PRIVATE_KEY_PATH` must be set together or left unset.
-Required for: outbound TTS calls (`/api/call`), inbound call handling and forwarding.
-`BASE_URL` is additionally required for outbound calls.
+The application credentials above are shared with Messages API. Enable the Voice capability in Vonage if calls are needed. `BASE_URL` is additionally required for outbound calls.
 See [Vonage's documentation](https://developer.vonage.com/en/voice/voice-api/concepts/text-to-speech#supported-languages) for the list of available languages and voice styles.
 
 | Variable                  | Default                    | Description                                                                 |
 | ------------------------- | -------------------------- | --------------------------------------------------------------------------- |
-| `VONAGE_APPLICATION_ID`   | _(none)_                   | Vonage application ID (for Voice/JWT)                                       |
-| `VONAGE_PRIVATE_KEY_PATH` | `/run/secrets/private.key` | Path to your Vonage application's private key file                          |
 | `BASE_URL`                | _(none)_                   | Public base URL of this service, e.g. `https://bridge.example.com`          |
 | `FORWARD_PHONE_NUMBER`    | _(none)_                   | Phone number to forward inbound calls to                                    |
 | `FORWARD_SIP_URI`         | _(none)_                   | SIP URI to forward inbound calls to (takes priority over phone number)      |
@@ -128,9 +130,7 @@ See [Vonage's documentation](https://developer.vonage.com/en/voice/voice-api/con
 | `OUTBOUND_TIMEOUT_S`                    | `10`      | Timeout for outbound HTTP requests (seconds)                               |
 | `ALLOWED_SMS_SENDERS`                   | _(all)_   | Comma-separated list of phone numbers allowed to send SMS                  |
 | `SMS_MAX_LENGTH`                        | `1600`    | Maximum SMS message length                                                 |
-| `VALIDATE_VONAGE_SMS_SIGNATURE`         | `false`   | Enable Vonage SMS signature verification                                   |
-| `VONAGE_SIGNATURE_SECRET`               | _(none)_  | Required if signature validation is enabled                                |
-| `VONAGE_SIGNATURE_ALGORITHM`            | `md5hash` | Signature algorithm: `md5hash`, `md5`, `sha1`, `sha256`, `sha512`          |
+| `VALIDATE_VONAGE_WEBHOOK_SIGNATURE`     | `true`    | Verify HS256 signed Messages webhooks and payload hashes; keep enabled in production |
 | `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3`       | Max outbound call requests per window                                      |
 | `OUTBOUND_CALL_RATE_LIMIT_WINDOW_S`     | `300`     | Rate limit window for outbound calls (seconds)                             |
 | `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`       | Max outbound SMS requests per window                                       |
@@ -156,14 +156,21 @@ Logs are emitted as newline-delimited JSON to stdout.
 
 ### Vonage Webhook Endpoints
 
-These are called by Vonage and should be configured in your Vonage application dashboard.
+Configure these **Messages capability** URLs in your Vonage Application.
+They accept JSON `POST` webhooks signed by Vonage with an HS256 JWT.
 
-| Method     | Path             | Description                            |
-| ---------- | ---------------- | -------------------------------------- |
-| `GET/POST` | `/vonage/sms`    | Inbound SMS receiver                   |
-| `GET/POST` | `/vonage/dlr`    | SMS delivery receipt handler           |
-| `GET/POST` | `/vonage/answer` | Inbound call answer URL (returns NCCO) |
-| `GET/POST` | `/vonage/event`  | Inbound call event URL                 |
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/vonage/inbound-message` | Incoming Messages API v1 SMS to Home Assistant Assist |
+| `POST` | `/vonage/message-status` | Messages API v1 status callbacks forwarded to the existing HA SMS DLR webhook |
+| `GET/POST` | `/vonage/answer` | Voice call answer URL (returns NCCO) |
+| `GET/POST` | `/vonage/event` | Voice call event URL |
+
+The legacy `/vonage/sms` and `/vonage/dlr` endpoints are no longer used.
+Messages API status payloads include `message_uuid` and statuses such as
+`submitted`, `delivered`, and `rejected`. The Home Assistant webhook ID
+(`HA_SMS_DLR_WEBHOOK_ID`) and wrapper type (`sms_dlr`) are unchanged, but
+the nested `payload` now contains the Messages API v1 fields.
 
 ### Internal API Endpoints
 
@@ -226,14 +233,29 @@ Initiate an outbound phone call with a text-to-speech message.
 
 ## Vonage Setup
 
-1. Create a Vonage application in the [dashboard](https://dashboard.vonage.com/applications) with **Voice** and **Messages** capabilities enabled.
-2. Set the **Answer URL** to `https://your-domain/vonage/answer` and the **Event URL** to `https://your-domain/vonage/event`.
-3. Download the generated private key and save it to the path specified by `VONAGE_PRIVATE_KEY_PATH`.
-4. Link your Vonage number to the application.
-5. Configure the **Inbound SMS webhook** on your number to point to `https://your-domain/vonage/sms`.
-6. Optionally configure the **SMS delivery receipt webhook** to `https://your-domain/vonage/dlr`.
+1. In Vonage **API Settings**, select **Messages API** instead of the legacy SMS API.
+2. In your Vonage **Application**, enable **Messages**, select **v1**, and configure:
+   - Inbound URL: `https://vonage.ebi.nu/vonage/inbound-message`
+   - Status URL: `https://vonage.ebi.nu/vonage/message-status`
+3. **Link your SMS-capable Vonage number** to that application. Check for per-number inbound webhook overrides.
+4. Mount the application's downloaded RSA private key and configure
+   `VONAGE_APPLICATION_ID` and `VONAGE_PRIVATE_KEY_PATH`.
+5. Set `VONAGE_API_KEY` and `VONAGE_SIGNATURE_SECRET` (the latter is in
+   **API Settings**, and differs from `VONAGE_API_SECRET`).
+6. If using calls, enable **Voice** in that application and configure
+   `https://vonage.ebi.nu/vonage/answer` and
+   `https://vonage.ebi.nu/vonage/event`.
 
----
+**Important:** The Dashboard's *Webhook version for basic authentication*
+setting applies to account-level configuration. For this bridge, ensure the
+**Messages capability on the Application** is also set to **v1**. Sending SMS
+uses the application JWT, not account-level Basic authentication.
+
+After deployment, send an SMS to your number and check the bridge's logs for
+`Inbound SMS received`. Trigger an outbound SMS and check for
+`SMS accepted by Messages API` followed by status callbacks. A successful
+Messages API send returns HTTP 202 with a `message_uuid`; it does **not**
+confirm delivery until a later status callback.
 
 ## Home Assistant Setup
 
@@ -338,9 +360,9 @@ sensor:
 
 - All `/api/*` endpoints, `/ncco/talk`, and `/version` require the `x-api-token` header (or `x-api-token` query parameter for Vonage callbacks to `/ncco/talk`).
 - Inbound SMS can be restricted to specific senders via `ALLOWED_SMS_SENDERS`.
-- Vonage SMS signature validation can be enabled via `VALIDATE_VONAGE_SMS_SIGNATURE` for additional assurance that requests originate from Vonage.
+- Messages webhooks are validated by default using the account signature secret (HS256), the `api_key` claim, and the message payload hash. Keep `VALIDATE_VONAGE_WEBHOOK_SIGNATURE=true` in production.
 - Outbound SMS and call endpoints are rate-limited per destination number.
-- Ensure `INTERNAL_API_TOKEN` is a strong random secret and that the service is not publicly accessible on the `/api/*` paths (place it behind a firewall or keep it on your LAN).
+- Ensure `INTERNAL_API_TOKEN` is a strong random secret and that the service is not publicly accessible on the `/api/*` paths (place it behind a firewall or keep it on your LAN). Publicly expose only the webhook and voice endpoints required by Vonage.
 
 ---
 
