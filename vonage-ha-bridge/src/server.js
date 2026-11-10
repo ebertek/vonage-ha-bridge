@@ -4,6 +4,11 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import axios from "axios";
 import jwt from "jsonwebtoken";
+import {
+  buildMessagesSmsPayload,
+  parseInboundSms,
+  verifyMessagesWebhook,
+} from "./messages.js";
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
 
@@ -49,11 +54,7 @@ const config = {
   version: process.env.APP_VERSION ?? "dev",
   logLevel: (process.env.LOG_LEVEL ?? "info").toLowerCase(),
   vonageApiKey: process.env.VONAGE_API_KEY ?? "",
-  vonageApiSecret: process.env.VONAGE_API_SECRET ?? "",
   vonageSignatureSecret: process.env.VONAGE_SIGNATURE_SECRET ?? "",
-  vonageSignatureAlgorithm: (
-    process.env.VONAGE_SIGNATURE_ALGORITHM ?? "md5hash"
-  ).toLowerCase(),
   vonageFromNumber: process.env.VONAGE_FROM_NUMBER?.trim()
     ? normalizePhoneNumber(process.env.VONAGE_FROM_NUMBER)
     : "",
@@ -95,9 +96,9 @@ const config = {
     process.env.DEFAULT_VOICE_STYLE ?? "0",
     10,
   ),
-  validateVonageSmsSignature:
-    (process.env.VALIDATE_VONAGE_SMS_SIGNATURE ?? "false").toLowerCase() ===
-    "true",
+  validateVonageWebhookSignature:
+    (process.env.VALIDATE_VONAGE_WEBHOOK_SIGNATURE ?? "true").toLowerCase() !==
+    "false",
   redactLogs: (process.env.REDACT_LOGS ?? "true").toLowerCase() !== "false",
 };
 
@@ -160,10 +161,6 @@ function isValidLogLevel(value) {
   return ["debug", "info", "warning", "error"].includes(value);
 }
 
-function isValidSignatureAlgorithm(value) {
-  return ["md5hash", "md5", "sha1", "sha256", "sha512"].includes(value);
-}
-
 // ---------------------------------------------------------------------------
 // Feature flags — derived from which credential groups are configured.
 // These are set during validateConfig() and used at runtime to gate
@@ -189,8 +186,8 @@ function validateConfig() {
   // ── Always-required ───────────────────────────────────────────────────────
   const alwaysRequired = [
     "VONAGE_API_KEY",
-    "VONAGE_API_SECRET",
     "VONAGE_FROM_NUMBER",
+    "VONAGE_APPLICATION_ID",
     "INTERNAL_API_TOKEN",
   ];
 
@@ -301,18 +298,18 @@ function validateConfig() {
     );
   }
 
-  if (!isValidSignatureAlgorithm(config.vonageSignatureAlgorithm)) {
-    errors.push(
-      `VONAGE_SIGNATURE_ALGORITHM must be one of: md5hash, md5, sha1, sha256, sha512. Got: ${config.vonageSignatureAlgorithm}`,
-    );
-  }
-
   if (
-    config.validateVonageSmsSignature &&
+    config.validateVonageWebhookSignature &&
     !config.vonageSignatureSecret.trim()
   ) {
     errors.push(
-      "VONAGE_SIGNATURE_SECRET is required when VALIDATE_VONAGE_SMS_SIGNATURE=true",
+      "VONAGE_SIGNATURE_SECRET is required when VALIDATE_VONAGE_WEBHOOK_SIGNATURE=true",
+    );
+  }
+
+  if (!config.validateVonageWebhookSignature) {
+    warnings.push(
+      "Messages API webhook signature verification is disabled; do not use this setting in production",
     );
   }
 
@@ -363,9 +360,7 @@ function validateConfig() {
   // ── Derive feature flags from validated config ────────────────────────────
   const haReady = Boolean(config.haBaseUrl && config.haToken);
 
-  features.sms = Boolean(
-    config.vonageApiKey && config.vonageApiSecret && config.vonageFromNumber,
-  );
+  features.sms = Boolean(config.vonageApplicationId && config.vonageFromNumber);
   features.inboundSms = features.sms && haReady;
   features.outboundCalls = voiceReady && Boolean(config.baseUrl);
   features.inboundCallForwarding =
@@ -652,141 +647,6 @@ function requireInternalToken(request, response, next) {
   next();
 }
 
-function sanitizeSignatureValue(value) {
-  return String(value ?? "").replace(/[&=]/gu, "_");
-}
-
-function buildVonageSignatureBaseString(params) {
-  return Object.entries(params)
-    .filter(([key]) => key !== "sig")
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `&${key}=${sanitizeSignatureValue(value)}`)
-    .join("");
-}
-
-function verifyVonageMd5HashSignature(sig, params, secret) {
-  const base = buildVonageSignatureBaseString(params);
-  const expected = crypto
-    .createHash("md5")
-    .update(`${base}${secret}`, "utf8")
-    .digest("hex");
-
-  return expected.toLowerCase() === String(sig).toLowerCase();
-}
-
-function verifyVonageHmacSignature(sig, params, secret, algorithm) {
-  const algoMap = {
-    md5: "md5",
-    sha1: "sha1",
-    sha256: "sha256",
-    sha512: "sha512",
-  };
-
-  const nodeAlgorithm = algoMap[algorithm];
-
-  if (!nodeAlgorithm) {
-    throw new Error(`Unsupported HMAC algorithm: ${algorithm}`);
-  }
-
-  const base = buildVonageSignatureBaseString(params);
-  const expected = crypto
-    .createHmac(nodeAlgorithm, secret)
-    .update(base, "utf8")
-    .digest("hex");
-
-  return expected.toLowerCase() === String(sig).toLowerCase();
-}
-
-function isValidVonageSmsSignature(request) {
-  if (!config.validateVonageSmsSignature) {
-    return true;
-  }
-
-  if (!config.vonageSignatureSecret) {
-    logger.error(
-      "Vonage SMS signature validation enabled, but VONAGE_SIGNATURE_SECRET is missing",
-    );
-    return false;
-  }
-
-  const params = {
-    ...request.query,
-    ...request.body,
-  };
-
-  const sig = params.sig ?? request.header("x-nexmo-signature") ?? "";
-
-  if (!sig) {
-    logger.warn("Missing Vonage signature");
-    return false;
-  }
-
-  logger.debug("SMS signature check", {
-    algorithm: config.vonageSignatureAlgorithm,
-    has_sig: Boolean(sig),
-    keys: Object.keys(params).sort(),
-  });
-
-  try {
-    if (config.vonageSignatureAlgorithm === "md5hash") {
-      return verifyVonageMd5HashSignature(
-        sig,
-        params,
-        config.vonageSignatureSecret,
-      );
-    }
-
-    return verifyVonageHmacSignature(
-      sig,
-      params,
-      config.vonageSignatureSecret,
-      config.vonageSignatureAlgorithm,
-    );
-  } catch (error) {
-    logger.error("SMS signature verification threw", {
-      error: error?.message ?? String(error),
-    });
-    return false;
-  }
-}
-
-function getVonageSmsError(message) {
-  switch (message.status) {
-    case "0":
-      return null;
-    case "1":
-      return "Rate limit exceeded";
-    case "2":
-      return "Invalid request parameters";
-    case "3":
-      return "Invalid sender address";
-    case "4":
-      return "Invalid Vonage credentials";
-    case "5":
-      return "Internal Vonage error";
-    case "6":
-      return "Invalid message";
-    case "7":
-      return "Number barred";
-    case "8":
-      return "Partner account barred";
-    case "9":
-      return "Partner quota exceeded";
-    case "11":
-      return "Account not enabled for REST";
-    case "12":
-      return "Message too long";
-    case "13":
-      return "Communication failed";
-    case "14":
-      return "Invalid signature";
-    case "15":
-      return "Invalid sender address";
-    default:
-      return message["error-text"] ?? "Unknown Vonage error";
-  }
-}
-
 async function callHaConversation({ from, text }) {
   const payload = {
     text,
@@ -846,48 +706,31 @@ async function callHaWebhook(webhookId, payload) {
 }
 
 async function sendSms({ to, text, clientRef }) {
-  const payload = new URLSearchParams({
-    api_key: config.vonageApiKey,
-    api_secret: config.vonageApiSecret,
-    to: normalizePhoneNumber(to),
+  const toNumber = normalizePhoneNumber(to);
+  const payload = buildMessagesSmsPayload({
+    to: toNumber,
     from: config.vonageFromNumber,
     text: sanitizeSmsText(text),
+    clientRef,
   });
 
-  if (clientRef) {
-    payload.append("client-ref", String(clientRef).slice(0, 40));
-  }
-
-  const result = await http.post(
-    "https://rest.nexmo.com/sms/json",
-    payload.toString(),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+  const result = await http.post("https://api.nexmo.com/v1/messages", payload, {
+    headers: {
+      Authorization: `Bearer ${createVonageJwt()}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
-  );
+  });
 
-  const message = result.data?.messages?.[0];
-
-  if (!message) {
-    throw new Error("Vonage SMS API returned no message result");
+  if (!result.data?.message_uuid) {
+    throw new Error("Vonage Messages API returned no message_uuid");
   }
 
-  const smsError = getVonageSmsError(message);
-
-  if (smsError) {
-    throw new Error(
-      `Vonage SMS failed with status ${message.status}: ${smsError}`,
-    );
-  }
-
-  logger.info("SMS sent", {
-    to: message.to,
-    message_id: message["message-id"],
-    status: message.status,
-    client_ref: message["client-ref"] ?? clientRef ?? null,
-    ...(config.redactLogs ? {} : { text }),
+  logger.info("SMS accepted by Messages API", {
+    to: toNumber,
+    message_uuid: result.data.message_uuid,
+    client_ref: payload.client_ref ?? null,
+    ...(config.redactLogs ? {} : { text: payload.text }),
   });
 
   return result.data;
@@ -1064,128 +907,180 @@ app.get("/version", requireInternalToken, (_request, response) => {
   });
 });
 
-async function handleInboundSms(request, response) {
-  try {
-    if (!isValidVonageSmsSignature(request)) {
-      const rejectedPayload =
-        request.method === "GET" ? request.query : request.body;
-      logger.warn("Rejected inbound SMS due to invalid Vonage signature", {
-        from: rejectedPayload.msisdn ?? rejectedPayload.from ?? "unknown",
-        remote_addr: request.ip,
-      });
-      response.status(403).json({ error: "Invalid signature" });
-      return;
-    }
+function requireMessagesWebhook(request, response, next) {
+  if (!config.validateVonageWebhookSignature) {
+    next();
+    return;
+  }
 
-    const payload = request.method === "GET" ? request.query : request.body;
-    const from = normalizePhoneNumber(payload.msisdn ?? payload.from ?? "");
-    const text = sanitizeSmsText(payload.text);
-
-    logger.info("SMS inbound", { from, text });
-
-    if (!from || !text) {
-      response.status(200).json({ ok: true });
-      return;
-    }
-
-    if (!isAuthorizedSender(from)) {
-      logger.warn("Unauthorized SMS sender", { from });
-      response.status(200).json({ ok: true });
-      return;
-    }
-
-    let replyText;
-
-    if (!features.inboundSms) {
-      logger.warn(
-        "Inbound SMS received but HA Assist is not configured — dropping without reply",
-      );
-      response.status(200).json({ ok: true });
-      return;
-    }
-
-    try {
-      const assistResponse = await callHaConversation({ from, text });
-      logger.debug("HA Assist raw response", {
-        assist_response: assistResponse,
-      });
-      replyText = extractAssistReply(assistResponse);
-    } catch (error) {
-      logger.error("Home Assistant Assist request failed", {
-        error: error.response?.data ?? error.message,
-      });
-      replyText = "Error communicating with Home Assistant.";
-    }
-
-    logger.info("Replying to inbound SMS", { to: from, reply_text: replyText });
-
-    try {
-      await sendSms({
-        to: from,
-        text: replyText,
-        clientRef: `inbound-reply-${Date.now()}`,
-      });
-    } catch (error) {
-      logger.error("Failed to send inbound SMS reply", {
-        to: from,
-        error: error.response?.data ?? error.message ?? String(error),
-      });
-    }
-
-    response.status(200).json({ ok: true });
-  } catch (error) {
-    logger.error("Inbound SMS handler failed", {
-      error: error.response?.data ?? error.message ?? String(error),
+  if (
+    !verifyMessagesWebhook({
+      authorization: request.header("authorization"),
+      payload: request.body,
+      signatureSecret: config.vonageSignatureSecret,
+      apiKey: config.vonageApiKey,
+      applicationId: config.vonageApplicationId,
+    })
+  ) {
+    logger.warn("Rejected unsigned or invalid Messages API webhook", {
+      path: request.path,
+      remote_addr: request.ip,
     });
-    response.status(500).json({
-      error: "Inbound SMS handling failed",
+    response.status(401).json({ error: "Invalid Vonage webhook signature" });
+    return;
+  }
+
+  next();
+}
+
+// A bounded, in-memory deduplication window guards against Vonage retries.
+// It is intentionally not a durable queue across process restarts.
+const inboundMessageIds = new Map();
+function isDuplicateInboundMessage(messageUuid) {
+  const now = Date.now();
+  if ((inboundMessageIds.get(messageUuid) ?? 0) > now) {
+    return true;
+  }
+
+  for (const [id, expiresAt] of inboundMessageIds) {
+    if (expiresAt <= now) {
+      inboundMessageIds.delete(id);
+    }
+  }
+
+  if (inboundMessageIds.size >= 5000) {
+    inboundMessageIds.delete(inboundMessageIds.keys().next().value);
+  }
+
+  inboundMessageIds.set(messageUuid, now + 60 * 60 * 1000);
+  return false;
+}
+
+async function processInboundSms({ from, text, messageUuid }) {
+  logger.info("Inbound SMS received", {
+    from,
+    message_uuid: messageUuid,
+    ...(config.redactLogs ? {} : { text }),
+  });
+
+  let replyText;
+  try {
+    const assistResponse = await callHaConversation({ from, text });
+    replyText = extractAssistReply(assistResponse);
+  } catch (error) {
+    logger.error("Home Assistant Assist request failed", {
+      error: error.message,
+    });
+    replyText = "Error communicating with Home Assistant.";
+  }
+
+  try {
+    await sendSms({
+      to: from,
+      text: replyText,
+      clientRef: `inbound-reply-${Date.now()}`,
+    });
+  } catch (error) {
+    logger.error("Failed to send inbound SMS reply", {
+      message_uuid: messageUuid,
+      error: error.message,
+      status: error.response?.status ?? null,
     });
   }
 }
 
-async function handleSmsDlr(request, response) {
+function handleInboundMessage(request, response) {
+  const inbound = parseInboundSms(request.body);
+  if (!inbound) {
+    logger.debug("Ignoring unsupported or malformed inbound Messages webhook");
+    response.status(204).end();
+    return;
+  }
+
+  let from;
   try {
-    const payload = request.method === "GET" ? request.query : request.body;
+    from = normalizePhoneNumber(inbound.from);
+  } catch {
+    logger.warn("Ignoring inbound SMS with invalid sender number");
+    response.status(204).end();
+    return;
+  }
 
-    logger.info("SMS delivery receipt received", {
-      status: payload.status,
-      message_id: payload.messageId,
-      msisdn: payload.msisdn,
-      client_ref: payload["client-ref"] ?? null,
-      err_code: payload["err-code"] ?? null,
+  const text = sanitizeSmsText(inbound.text);
+  if (!text || !isAuthorizedSender(from) || !features.inboundSms) {
+    if (!features.inboundSms) {
+      logger.warn("Inbound SMS ignored because HA Assist is not configured");
+    }
+    response.status(204).end();
+    return;
+  }
+
+  if (isDuplicateInboundMessage(inbound.messageUuid)) {
+    logger.info("Duplicate inbound SMS ignored", {
+      message_uuid: inbound.messageUuid,
     });
+    response.status(204).end();
+    return;
+  }
 
+  // Acknowledge promptly; HA Assist may take longer than Vonage's webhook timeout.
+  response.status(204).end();
+  void processInboundSms({
+    from,
+    text,
+    messageUuid: inbound.messageUuid,
+  }).catch((error) => {
+    logger.error("Inbound SMS processing failed", {
+      message_uuid: inbound.messageUuid,
+      error: error.message,
+    });
+  });
+}
+
+async function handleMessageStatus(request, response) {
+  const payload = request.body;
+  if (
+    payload?.channel !== "sms" ||
+    typeof payload.message_uuid !== "string" ||
+    typeof payload.status !== "string"
+  ) {
+    response.status(204).end();
+    return;
+  }
+
+  logger.info("Messages API SMS status received", {
+    status: payload.status,
+    message_uuid: payload.message_uuid,
+    client_ref: payload.client_ref ?? null,
+    error_code: payload.error?.code ?? null,
+  });
+
+  try {
     if (features.haWebhooks) {
-      logger.debug("Forwarding to HA webhook", {
-        webhook_id: config.haSmsDlrWebhookId,
-        payload,
-      });
       await callHaWebhook(config.haSmsDlrWebhookId, {
         provider: "vonage",
         type: "sms_dlr",
-        method: request.method,
+        method: "POST",
         payload,
       });
-    } else {
-      logger.debug(
-        "SMS DLR received but HA webhooks not configured — skipping forwarding",
-      );
     }
-
-    response.status(200).json({ ok: true });
+    response.status(204).end();
   } catch (error) {
-    logger.error("SMS DLR handler failed", {
-      error: error.response?.data ?? error.message ?? String(error),
+    logger.error("Unable to forward Messages API status to Home Assistant", {
+      message_uuid: payload.message_uuid,
+      error: error.message,
     });
-    response.status(200).json({ ok: true });
+    // Non-2xx lets Vonage retry the delivery when HA is temporarily unavailable.
+    response.status(503).json({ error: "HA status forwarding unavailable" });
   }
 }
 
-app.get("/vonage/sms", handleInboundSms);
-app.post("/vonage/sms", handleInboundSms);
-
-app.get("/vonage/dlr", handleSmsDlr);
-app.post("/vonage/dlr", handleSmsDlr);
+app.post(
+  "/vonage/inbound-message",
+  requireMessagesWebhook,
+  handleInboundMessage,
+);
+app.post("/vonage/message-status", requireMessagesWebhook, handleMessageStatus);
 
 function handleAnswer(_request, response) {
   try {
@@ -1248,7 +1143,7 @@ app.post(
     if (!features.sms) {
       response.status(503).json({
         error:
-          "Outbound SMS is disabled — set VONAGE_API_KEY, VONAGE_API_SECRET, and VONAGE_FROM_NUMBER",
+          "Outbound SMS is disabled — configure VONAGE_APPLICATION_ID, VONAGE_PRIVATE_KEY_PATH, and VONAGE_FROM_NUMBER",
       });
       return;
     }

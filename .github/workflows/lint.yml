@@ -40,6 +40,34 @@ jobs:
           VALIDATE_PYTHON_RUFF_FORMAT: false
           VALIDATE_SPELL_CODESPELL: false
 
+  messages-api-tests:
+    name: Messages API Tests
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        working-directory: vonage-ha-bridge
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+
+      - name: Run tests
+        run: npm test
+
   docker-runtime:
     name: Docker - Runtime Validation
     runs-on: ubuntu-latest
