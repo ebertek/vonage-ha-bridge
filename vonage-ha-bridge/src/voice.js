@@ -10,9 +10,7 @@ export function buildTalkNcco(text, language, style) {
         .trim()
         .slice(0, 1400),
       ...(language ? { language } : {}),
-      ...(style !== undefined &&
-      style !== null &&
-      !Number.isNaN(Number(style))
+      ...(style !== undefined && style !== null && !Number.isNaN(Number(style))
         ? { style: Number(style) }
         : {}),
     },
