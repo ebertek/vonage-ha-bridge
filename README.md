@@ -176,10 +176,6 @@ the nested `payload` now contains the Messages API v1 fields.
 
 These require the `x-api-token` header set to your `INTERNAL_API_TOKEN`.
 
-#### `GET /ncco/talk`
-
-Returns a TTS NCCO used internally as the answer URL for outbound `"talk"` mode calls. The token is embedded in the URL automatically — this endpoint should not be called directly.
-
 #### `POST /api/send-sms`
 
 Send an outbound SMS.
@@ -196,7 +192,7 @@ Send an outbound SMS.
 
 #### `POST /api/call`
 
-Initiate an outbound phone call with a text-to-speech message.
+Initiate an outbound phone call with a text-to-speech message. In `talk` mode, the NCCO is sent directly to Vonage in the call-creation request; no public answer callback is required.
 
 **Request body:**
 
@@ -358,7 +354,7 @@ sensor:
 
 ## Security
 
-- All `/api/*` endpoints, `/ncco/talk`, and `/version` require the `x-api-token` header (or `x-api-token` query parameter for Vonage callbacks to `/ncco/talk`).
+- All `/api/*` endpoints and `/version` require the `x-api-token` header. Outbound calls no longer include this token in Voice callback URLs.
 - Inbound SMS can be restricted to specific senders via `ALLOWED_SMS_SENDERS`.
 - Messages webhooks are validated by default using the account signature secret (HS256), the `api_key` claim, and the message payload hash. Keep `VALIDATE_VONAGE_WEBHOOK_SIGNATURE=true` in production.
 - Outbound SMS and call endpoints are rate-limited per destination number.

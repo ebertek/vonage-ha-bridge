@@ -11,6 +11,7 @@ import {
 } from "./messages.js";
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
+import { buildOutboundTalkCallPayload, buildTalkNcco } from "./voice.js";
 
 function normalizePhoneNumber(value) {
   let msisdn = String(value ?? "").trim();
@@ -791,26 +792,14 @@ async function createOutboundCall({
       event_url: [`${config.baseUrl}/vonage/event`],
     };
   } else {
-    const talkText = String(text ?? "")
-      .trim()
-      .slice(0, 1400);
-
-    payload = {
-      to: [
-        {
-          type: "phone",
-          number: toNumber,
-        },
-      ],
-      from: {
-        type: "phone",
-        number: fromNumber,
-      },
-      answer_url: [
-        `${config.baseUrl}/ncco/talk?text=${encodeURIComponent(talkText)}&language=${encodeURIComponent(language)}&style=${encodeURIComponent(style)}&x-api-token=${encodeURIComponent(config.internalApiToken)}`,
-      ],
-      event_url: [`${config.baseUrl}/vonage/event`],
-    };
+    payload = buildOutboundTalkCallPayload({
+      to: toNumber,
+      from: fromNumber,
+      text,
+      language,
+      style,
+      eventUrl: `${config.baseUrl}/vonage/event`,
+    });
   }
 
   const result = await http.post("https://api.nexmo.com/v1/calls", payload, {
@@ -864,21 +853,6 @@ function buildInboundCallNcco() {
           number: config.forwardPhoneNumber,
         },
       ],
-    },
-  ];
-}
-
-function buildTalkNcco(text, language, style) {
-  return [
-    {
-      action: "talk",
-      text: String(text ?? "")
-        .trim()
-        .slice(0, 1400),
-      ...(language ? { language } : {}),
-      ...(style !== undefined && style !== null && !Number.isNaN(Number(style))
-        ? { style: Number(style) }
-        : {}),
     },
   ];
 }
@@ -1126,14 +1100,6 @@ async function handleCallEvent(request, response) {
 
 app.get("/vonage/event", handleCallEvent);
 app.post("/vonage/event", handleCallEvent);
-
-app.get("/ncco/talk", requireInternalToken, (request, response) => {
-  const text =
-    request.query.text ?? "This is an automated call from Home Assistant.";
-  const language = request.query.language || config.defaultVoiceLanguage;
-  const style = request.query.style ?? config.defaultVoiceStyle;
-  response.json(buildTalkNcco(text, language, style));
-});
 
 app.post(
   "/api/send-sms",
