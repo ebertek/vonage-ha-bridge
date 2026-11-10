@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  buildOutboundTalkCallPayload,
-  buildTalkNcco,
-} from "../src/voice.js";
+import { buildOutboundTalkCallPayload, buildTalkNcco } from "../src/voice.js";
 
 test("outbound talk call embeds an NCCO with no answer URL or secret", () => {
   const payload = buildOutboundTalkCallPayload({
