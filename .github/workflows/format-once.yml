@@ -1,0 +1,41 @@
+---
+name: One-time Messages API formatting
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - feat/messages-api-v1-migration
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - name: Format changed source and documentation
+        run: >-
+          npx --yes prettier@3.9.10 --write
+          README.md
+          vonage-ha-bridge/src/server.js
+          vonage-ha-bridge/src/messages.js
+          vonage-ha-bridge/test/messages.test.js
+
+      - name: Commit formatting changes
+        run: |
+          if ! git diff --quiet -- README.md vonage-ha-bridge/src/server.js vonage-ha-bridge/src/messages.js vonage-ha-bridge/test/messages.test.js; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md vonage-ha-bridge/src/server.js vonage-ha-bridge/src/messages.js vonage-ha-bridge/test/messages.test.js
+            git commit -m "Format Messages API migration files"
+            git push origin HEAD:feat/messages-api-v1-migration
+          fi
