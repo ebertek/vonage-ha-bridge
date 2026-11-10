@@ -246,7 +246,7 @@ Initiate an outbound phone call with a text-to-speech message.
    `https://vonage.ebi.nu/vonage/answer` and
    `https://vonage.ebi.nu/vonage/event`.
 
-**Important:** The Dashboard's *Webhook version for basic authentication*
+**Important:** The Dashboard's _Webhook version for basic authentication_
 setting applies to account-level configuration. For this bridge, ensure the
 **Messages capability on the Application** is also set to **v1**. Sending SMS
 uses the application JWT, not account-level Basic authentication.
