@@ -235,16 +235,16 @@ Initiate an outbound phone call with a text-to-speech message.
 
 1. In Vonage **API Settings**, select **Messages API** instead of the legacy SMS API.
 2. In your Vonage **Application**, enable **Messages**, select **v1**, and configure:
-   - Inbound URL: `https://vonage.ebi.nu/vonage/inbound-message`
-   - Status URL: `https://vonage.ebi.nu/vonage/message-status`
+   - Inbound URL: `https://your-domain/vonage/inbound-message`
+   - Status URL: `https://your-domain/vonage/message-status`
 3. **Link your SMS-capable Vonage number** to that application. Check for per-number inbound webhook overrides.
 4. Mount the application's downloaded RSA private key and configure
    `VONAGE_APPLICATION_ID` and `VONAGE_PRIVATE_KEY_PATH`.
 5. Set `VONAGE_API_KEY` and `VONAGE_SIGNATURE_SECRET` (the latter is in
    **API Settings**, and differs from `VONAGE_API_SECRET`).
 6. If using calls, enable **Voice** in that application and configure
-   `https://vonage.ebi.nu/vonage/answer` and
-   `https://vonage.ebi.nu/vonage/event`.
+   `https://your-domain/vonage/answer` and
+   `https://your-domain/vonage/event`.
 
 **Important:** The Dashboard's _Webhook version for basic authentication_
 setting applies to account-level configuration. For this bridge, ensure the
