@@ -104,7 +104,10 @@ test("webhook authentication checks API key and application ID", () => {
     false,
   );
   assert.equal(
-    verify(payload, signedAuthorization(payload, { application_id: undefined })),
+    verify(
+      payload,
+      signedAuthorization(payload, { application_id: undefined }),
+    ),
     true,
   );
 });
@@ -113,7 +116,9 @@ test("webhook authentication rejects stale and malformed claims", () => {
   assert.equal(
     verify(
       payload,
-      signedAuthorization(payload, { iat: Math.floor(Date.now() / 1000) - 600 }),
+      signedAuthorization(payload, {
+        iat: Math.floor(Date.now() / 1000) - 600,
+      }),
     ),
     false,
   );

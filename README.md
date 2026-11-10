@@ -81,14 +81,14 @@ All configuration is via environment variables. Copy the repository-root `.env.e
 The Vonage Application is used for SMS and, optionally, Voice. Webhooks are signed
 with your **account signature secret**, not your API secret or application private key.
 
-| Variable | Description |
-| --- | --- |
-| `VONAGE_API_KEY` | Vonage account API key (for signed webhook JWT validation) |
-| `VONAGE_APPLICATION_ID` | ID of the Messages-enabled Vonage Application |
+| Variable                  | Description                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `VONAGE_API_KEY`          | Vonage account API key (for signed webhook JWT validation)                         |
+| `VONAGE_APPLICATION_ID`   | ID of the Messages-enabled Vonage Application                                      |
 | `VONAGE_PRIVATE_KEY_PATH` | Path to its RSA private key (default: `/run/secrets/private.key`; file must exist) |
-| `VONAGE_SIGNATURE_SECRET` | Account signature secret from Vonage API Settings (for HS256 signed webhooks) |
-| `VONAGE_FROM_NUMBER` | Vonage SMS-capable number, country code and digits only |
-| `INTERNAL_API_TOKEN` | Strong secret for authenticating requests to `/api/*` |
+| `VONAGE_SIGNATURE_SECRET` | Account signature secret from Vonage API Settings (for HS256 signed webhooks)      |
+| `VONAGE_FROM_NUMBER`      | Vonage SMS-capable number, country code and digits only                            |
+| `INTERNAL_API_TOKEN`      | Strong secret for authenticating requests to `/api/*`                              |
 
 `VONAGE_API_SECRET` is no longer used by the bridge for SMS sending.
 
@@ -112,29 +112,29 @@ Required for: inbound SMS → Assist → reply, HA webhook forwarding (call even
 The application credentials above are shared with Messages API. Enable the Voice capability in Vonage if calls are needed. `BASE_URL` is additionally required for outbound calls.
 See [Vonage's documentation](https://developer.vonage.com/en/voice/voice-api/concepts/text-to-speech#supported-languages) for the list of available languages and voice styles.
 
-| Variable                  | Default                    | Description                                                                 |
-| ------------------------- | -------------------------- | --------------------------------------------------------------------------- |
-| `BASE_URL`                | _(none)_                   | Public base URL of this service, e.g. `https://bridge.example.com`          |
-| `FORWARD_PHONE_NUMBER`    | _(none)_                   | Phone number to forward inbound calls to                                    |
-| `FORWARD_SIP_URI`         | _(none)_                   | SIP URI to forward inbound calls to (takes priority over phone number)      |
-| `DEFAULT_VOICE_LANGUAGE`  | `en-US`                    | Default TTS language for outbound calls (Vonage voice language code)        |
-| `DEFAULT_VOICE_STYLE`     | `0`                        | Default voice style index for outbound calls (0 = default, varies by voice) |
+| Variable                 | Default  | Description                                                                 |
+| ------------------------ | -------- | --------------------------------------------------------------------------- |
+| `BASE_URL`               | _(none)_ | Public base URL of this service, e.g. `https://bridge.example.com`          |
+| `FORWARD_PHONE_NUMBER`   | _(none)_ | Phone number to forward inbound calls to                                    |
+| `FORWARD_SIP_URI`        | _(none)_ | SIP URI to forward inbound calls to (takes priority over phone number)      |
+| `DEFAULT_VOICE_LANGUAGE` | `en-US`  | Default TTS language for outbound calls (Vonage voice language code)        |
+| `DEFAULT_VOICE_STYLE`    | `0`      | Default voice style index for outbound calls (0 = default, varies by voice) |
 
 ### Optional — General
 
-| Variable                                | Default   | Description                                                                |
-| --------------------------------------- | --------- | -------------------------------------------------------------------------- |
-| `PORT`                                  | `3000`    | Port to listen on                                                          |
-| `LOG_LEVEL`                             | `info`    | Log level: `debug`, `info`, `warning`, or `error`                          |
-| `REDACT_LOGS`                           | `true`    | Redact sensitive query params (sig, api-key, msisdn, nonce) from HTTP logs |
-| `OUTBOUND_TIMEOUT_S`                    | `10`      | Timeout for outbound HTTP requests (seconds)                               |
-| `ALLOWED_SMS_SENDERS`                   | _(all)_   | Comma-separated list of phone numbers allowed to send SMS                  |
-| `SMS_MAX_LENGTH`                        | `1600`    | Maximum SMS message length                                                 |
-| `VALIDATE_VONAGE_WEBHOOK_SIGNATURE`     | `true`    | Verify HS256 signed Messages webhooks and payload hashes; keep enabled in production |
-| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3`       | Max outbound call requests per window                                      |
-| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_S`     | `300`     | Rate limit window for outbound calls (seconds)                             |
-| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`       | Max outbound SMS requests per window                                       |
-| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_S`      | `15`      | Rate limit window for outbound SMS (seconds)                               |
+| Variable                                | Default | Description                                                                          |
+| --------------------------------------- | ------- | ------------------------------------------------------------------------------------ |
+| `PORT`                                  | `3000`  | Port to listen on                                                                    |
+| `LOG_LEVEL`                             | `info`  | Log level: `debug`, `info`, `warning`, or `error`                                    |
+| `REDACT_LOGS`                           | `true`  | Redact sensitive query params (sig, api-key, msisdn, nonce) from HTTP logs           |
+| `OUTBOUND_TIMEOUT_S`                    | `10`    | Timeout for outbound HTTP requests (seconds)                                         |
+| `ALLOWED_SMS_SENDERS`                   | _(all)_ | Comma-separated list of phone numbers allowed to send SMS                            |
+| `SMS_MAX_LENGTH`                        | `1600`  | Maximum SMS message length                                                           |
+| `VALIDATE_VONAGE_WEBHOOK_SIGNATURE`     | `true`  | Verify HS256 signed Messages webhooks and payload hashes; keep enabled in production |
+| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3`     | Max outbound call requests per window                                                |
+| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_S`     | `300`   | Rate limit window for outbound calls (seconds)                                       |
+| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`     | Max outbound SMS requests per window                                                 |
+| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_S`      | `15`    | Rate limit window for outbound SMS (seconds)                                         |
 
 ---
 
@@ -159,12 +159,12 @@ Logs are emitted as newline-delimited JSON to stdout.
 Configure these **Messages capability** URLs in your Vonage Application.
 They accept JSON `POST` webhooks signed by Vonage with an HS256 JWT.
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/vonage/inbound-message` | Incoming Messages API v1 SMS to Home Assistant Assist |
-| `POST` | `/vonage/message-status` | Messages API v1 status callbacks forwarded to the existing HA SMS DLR webhook |
-| `GET/POST` | `/vonage/answer` | Voice call answer URL (returns NCCO) |
-| `GET/POST` | `/vonage/event` | Voice call event URL |
+| Method     | Path                      | Description                                                                   |
+| ---------- | ------------------------- | ----------------------------------------------------------------------------- |
+| `POST`     | `/vonage/inbound-message` | Incoming Messages API v1 SMS to Home Assistant Assist                         |
+| `POST`     | `/vonage/message-status`  | Messages API v1 status callbacks forwarded to the existing HA SMS DLR webhook |
+| `GET/POST` | `/vonage/answer`          | Voice call answer URL (returns NCCO)                                          |
+| `GET/POST` | `/vonage/event`           | Voice call event URL                                                          |
 
 The legacy `/vonage/sms` and `/vonage/dlr` endpoints are no longer used.
 Messages API status payloads include `message_uuid` and statuses such as

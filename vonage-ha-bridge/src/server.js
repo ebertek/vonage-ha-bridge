@@ -360,9 +360,7 @@ function validateConfig() {
   // ── Derive feature flags from validated config ────────────────────────────
   const haReady = Boolean(config.haBaseUrl && config.haToken);
 
-  features.sms = Boolean(
-    config.vonageApplicationId && config.vonageFromNumber,
-  );
+  features.sms = Boolean(config.vonageApplicationId && config.vonageFromNumber);
   features.inboundSms = features.sms && haReady;
   features.outboundCalls = voiceReady && Boolean(config.baseUrl);
   features.inboundCallForwarding =
@@ -716,17 +714,13 @@ async function sendSms({ to, text, clientRef }) {
     clientRef,
   });
 
-  const result = await http.post(
-    "https://api.nexmo.com/v1/messages",
-    payload,
-    {
-      headers: {
-        Authorization: `Bearer ${createVonageJwt()}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
+  const result = await http.post("https://api.nexmo.com/v1/messages", payload, {
+    headers: {
+      Authorization: `Bearer ${createVonageJwt()}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
-  );
+  });
 
   if (!result.data?.message_uuid) {
     throw new Error("Vonage Messages API returned no message_uuid");
@@ -1086,11 +1080,7 @@ app.post(
   requireMessagesWebhook,
   handleInboundMessage,
 );
-app.post(
-  "/vonage/message-status",
-  requireMessagesWebhook,
-  handleMessageStatus,
-);
+app.post("/vonage/message-status", requireMessagesWebhook, handleMessageStatus);
 
 function handleAnswer(_request, response) {
   try {
