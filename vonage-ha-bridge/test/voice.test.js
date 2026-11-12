@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildOutboundTalkCallPayload, buildTalkNcco } from "../src/voice.js";
+import {
+  buildOutboundTalkCallPayload,
+  buildTalkNcco,
+  isValidVoiceTtsWaitMs,
+} from "../src/voice.js";
 
 test("outbound talk call embeds an NCCO with no answer URL or secret", () => {
   const payload = buildOutboundTalkCallPayload({
@@ -43,4 +47,61 @@ test("missing or invalid style is omitted from the NCCO", () => {
   assert.deepEqual(buildTalkNcco("Hello", "en-US", null), [
     { action: "talk", text: "Hello", language: "en-US" },
   ]);
+});
+
+test("configured lead-in and lead-out waits wrap outbound TTS", () => {
+  const payload = buildOutboundTalkCallPayload({
+    to: "46735519258",
+    from: "46790965420",
+    text: "Water leak detected!",
+    language: "en-US",
+    style: 0,
+    eventUrl: "https://bridge.example.com/vonage/event",
+    leadInMs: 500,
+    leadOutMs: 500,
+  });
+
+  assert.deepEqual(payload.ncco, [
+    { action: "wait", timeout: 0.5 },
+    {
+      action: "talk",
+      text: "Water leak detected!",
+      language: "en-US",
+      style: 0,
+    },
+    { action: "wait", timeout: 0.5 },
+  ]);
+  assert.equal("answer_url" in payload, false);
+});
+
+test("one-sided waits are optional, and zero preserves the original NCCO", () => {
+  assert.deepEqual(buildTalkNcco("Hello", "en-US", 0, { leadInMs: 100 }), [
+    { action: "wait", timeout: 0.1 },
+    { action: "talk", text: "Hello", language: "en-US", style: 0 },
+  ]);
+  assert.deepEqual(buildTalkNcco("Hello", "en-US", 0, { leadOutMs: 250 }), [
+    { action: "talk", text: "Hello", language: "en-US", style: 0 },
+    { action: "wait", timeout: 0.25 },
+  ]);
+  assert.deepEqual(
+    buildTalkNcco("Hello", "en-US", 0, { leadInMs: 0, leadOutMs: 0 }),
+    buildTalkNcco("Hello", "en-US", 0),
+  );
+});
+
+test("wait values must be zero or whole milliseconds supported by Vonage", () => {
+  for (const value of [0, 100, 500, 7_200_000]) {
+    assert.equal(isValidVoiceTtsWaitMs(value), true);
+  }
+  for (const value of [-1, 1, 99, 100.5, 7_200_001, NaN, Infinity, "500"]) {
+    assert.equal(isValidVoiceTtsWaitMs(value), false);
+  }
+  assert.throws(
+    () => buildTalkNcco("Hello", "en-US", 0, { leadInMs: 50 }),
+    RangeError,
+  );
+  assert.throws(
+    () => buildTalkNcco("Hello", "en-US", 0, { leadOutMs: -100 }),
+    RangeError,
+  );
 });

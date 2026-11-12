@@ -120,6 +120,8 @@ See [Vonage's documentation](https://developer.vonage.com/en/voice/voice-api/con
 | `DEFAULT_VOICE_LANGUAGE` | `en-US`  | Default TTS language for outbound calls (Vonage voice language code)        |
 | `DEFAULT_VOICE_STYLE`    | `0`      | Default voice style index for outbound calls (0 = default, varies by voice) |
 
+Optional outbound TTS timing: `VOICE_TTS_LEAD_IN_MS` and `VOICE_TTS_LEAD_OUT_MS` both default to `0` (disabled). Set either to an integer from `100` to `7200000` milliseconds to insert a wait before or after the spoken message (for example, `500` for half a second). These settings do not affect incoming calls or `connect` mode.
+
 ### Optional — General
 
 | Variable                                | Default | Description                                                                          |
