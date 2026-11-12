@@ -12,7 +12,9 @@ export function isValidVoiceTtsWaitMs(value) {
 
 function optionalWaitNcco(milliseconds) {
   if (!isValidVoiceTtsWaitMs(milliseconds)) {
-    throw new RangeError("Voice TTS wait must be 0 or 100–7200000 milliseconds");
+    throw new RangeError(
+      "Voice TTS wait must be 0 or 100–7200000 milliseconds",
+    );
   }
 
   return milliseconds === 0
