@@ -11,7 +11,11 @@ import {
 } from "./messages.js";
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
-import { buildOutboundTalkCallPayload, buildTalkNcco } from "./voice.js";
+import {
+  buildOutboundTalkCallPayload,
+  buildTalkNcco,
+  isValidVoiceTtsWaitMs,
+} from "./voice.js";
 
 function normalizePhoneNumber(value) {
   let msisdn = String(value ?? "").trim();
@@ -97,6 +101,8 @@ const config = {
     process.env.DEFAULT_VOICE_STYLE ?? "0",
     10,
   ),
+  voiceTtsLeadInMs: Number(process.env.VOICE_TTS_LEAD_IN_MS ?? "0"),
+  voiceTtsLeadOutMs: Number(process.env.VOICE_TTS_LEAD_OUT_MS ?? "0"),
   validateVonageWebhookSignature:
     (process.env.VALIDATE_VONAGE_WEBHOOK_SIGNATURE ?? "true").toLowerCase() !==
     "false",
@@ -259,6 +265,17 @@ function validateConfig() {
     errors.push(
       `DEFAULT_VOICE_STYLE must be a non-negative integer: ${config.defaultVoiceStyle}`,
     );
+  }
+
+  for (const [name, milliseconds] of [
+    ["VOICE_TTS_LEAD_IN_MS", config.voiceTtsLeadInMs],
+    ["VOICE_TTS_LEAD_OUT_MS", config.voiceTtsLeadOutMs],
+  ]) {
+    if (!isValidVoiceTtsWaitMs(milliseconds)) {
+      errors.push(
+        `${name} must be 0 (disabled) or an integer between 100 and 7200000 milliseconds`,
+      );
+    }
   }
 
   if (!isPositiveInteger(config.smsMaxLength)) {
@@ -799,6 +816,8 @@ async function createOutboundCall({
       language,
       style,
       eventUrl: `${config.baseUrl}/vonage/event`,
+      leadInMs: config.voiceTtsLeadInMs,
+      leadOutMs: config.voiceTtsLeadOutMs,
     });
   }
 
