@@ -14,8 +14,8 @@ const applicationId = "test-application-id";
 const payload = {
   channel: "sms",
   message_uuid: "aaaaaaaa-bbbb-4ccc-8ddd-0123456789ab",
-  from: "46701111111",
-  to: "46702222222",
+  from: "12025550131",
+  to: "12025550132",
   text: "Hello from Vonage!",
 };
 
@@ -46,16 +46,16 @@ function verify(body, authorization) {
 test("Messages SMS payload uses JSON v1 fields and client_ref", () => {
   assert.deepEqual(
     buildMessagesSmsPayload({
-      to: "46701111111",
-      from: "46702222222",
+      to: "12025550131",
+      from: "12025550132",
       text: "SMS message",
       clientRef: "home-assistant-123",
     }),
     {
       channel: "sms",
       message_type: "text",
-      from: "46702222222",
-      to: "46701111111",
+      from: "12025550132",
+      to: "12025550131",
       text: "SMS message",
       client_ref: "home-assistant-123",
     },
