@@ -186,7 +186,7 @@ Send an outbound SMS.
 
 ```json
 {
-  "to": "46701234567",
+  "to": "12025550123",
   "text": "Hello from Home Assistant!",
   "clientRef": "optional-ref"
 }
@@ -200,7 +200,7 @@ Initiate an outbound phone call with a text-to-speech message. In `talk` mode, t
 
 ```json
 {
-  "to": "46701234567",
+  "to": "12025550123",
   "text": "This is an automated alert from Home Assistant.",
   "language": "en-US",
   "style": 0,
@@ -318,7 +318,7 @@ triggers:
     to: "on"
 conditions: []
 variables:
-  alert_number: "46701234567"
+  alert_number: "12025550123"
   alert_message: Water leak detected!
 actions:
   - parallel:
