@@ -119,10 +119,8 @@ See [Vonage's documentation](https://developer.vonage.com/en/voice/voice-api/con
 | `FORWARD_SIP_URI`        | _(none)_ | SIP URI to forward inbound calls to (takes priority over phone number)      |
 | `DEFAULT_VOICE_LANGUAGE` | `en-US`  | Default TTS language for outbound calls (Vonage voice language code)        |
 | `DEFAULT_VOICE_STYLE`    | `0`      | Default voice style index for outbound calls (0 = default, varies by voice) |
-| `VOICE_TTS_LEAD_IN_MS`   | `0`      | Pause before outbound `talk` TTS playback, in milliseconds (0 = disabled)   |
-| `VOICE_TTS_LEAD_OUT_MS`  | `0`      | Pause after outbound `talk` TTS playback, in milliseconds (0 = disabled)    |
 
-For outbound `talk` calls, `VOICE_TTS_LEAD_IN_MS` and `VOICE_TTS_LEAD_OUT_MS` insert optional Vonage NCCO `wait` actions around the spoken message. Set each to `0` to disable the wait, or an integer from `100` to `7200000` milliseconds (for example, `500` for half a second). The settings do not affect incoming calls or `connect` mode.
+Optional outbound TTS timing: `VOICE_TTS_LEAD_IN_MS` and `VOICE_TTS_LEAD_OUT_MS` both default to `0` (disabled). Set either to an integer from `100` to `7200000` milliseconds to insert a wait before or after the spoken message (for example, `500` for half a second). These settings do not affect incoming calls or `connect` mode.
 
 ### Optional — General
 
@@ -218,7 +216,7 @@ Initiate an outbound phone call with a text-to-speech message. In `talk` mode, t
 | `language`                 | No       | TTS language code (defaults to `DEFAULT_VOICE_LANGUAGE`)                                         |
 | `style`                    | No       | Voice style index (defaults to `DEFAULT_VOICE_STYLE`)                                            |
 | `dtmfAnswer`/`dtmf_answer` | No       | DTMF digits to send automatically when the call is answered (only used in `connect` mode)        |
-| `mode`                     | No       | `"talk"` (default) plays inline TTS; `"connect"` uses an inline NCCO with connect action         |
+| `mode`                     | No       | `"talk"` (default) plays TTS via answer URL; `"connect"` uses an inline NCCO with connect action |
 
 ### Utility Endpoints
 
