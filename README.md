@@ -119,6 +119,8 @@ See [Vonage's documentation](https://developer.vonage.com/en/voice/voice-api/con
 | `FORWARD_SIP_URI`        | _(none)_ | SIP URI to forward inbound calls to (takes priority over phone number)      |
 | `DEFAULT_VOICE_LANGUAGE` | `en-US`  | Default TTS language for outbound calls (Vonage voice language code)        |
 | `DEFAULT_VOICE_STYLE`    | `0`      | Default voice style index for outbound calls (0 = default, varies by voice) |
+| `VOICE_TTS_LEAD_IN_MS`  | `0`      | Pause before outbound `talk` TTS playback, in milliseconds (0 = disabled) |
+| `VOICE_TTS_LEAD_OUT_MS` | `0`      | Pause after outbound `talk` TTS playback, in milliseconds (0 = disabled) |
 
 ### Optional — General
 
