@@ -8,8 +8,8 @@ import {
 
 test("outbound talk call embeds an NCCO with no answer URL or secret", () => {
   const payload = buildOutboundTalkCallPayload({
-    to: "46735519258",
-    from: "46790965420",
+    to: "12025550123",
+    from: "12025550124",
     text: "Water leak detected!",
     language: "en-US",
     style: 0,
@@ -17,8 +17,8 @@ test("outbound talk call embeds an NCCO with no answer URL or secret", () => {
   });
 
   assert.deepEqual(payload, {
-    to: [{ type: "phone", number: "46735519258" }],
-    from: { type: "phone", number: "46790965420" },
+    to: [{ type: "phone", number: "12025550123" }],
+    from: { type: "phone", number: "12025550124" },
     ncco: [
       {
         action: "talk",
@@ -51,8 +51,8 @@ test("missing or invalid style is omitted from the NCCO", () => {
 
 test("configured lead-in and lead-out waits wrap outbound TTS", () => {
   const payload = buildOutboundTalkCallPayload({
-    to: "46735519258",
-    from: "46790965420",
+    to: "12025550123",
+    from: "12025550124",
     text: "Water leak detected!",
     language: "en-US",
     style: 0,
