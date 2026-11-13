@@ -1,6 +1,6 @@
 # vonage-ha-bridge
 
-A Node.js bridge between [Vonage](https://www.vonage.com/) and [Home Assistant](https://www.home-assistant.io/) for SMS, phone calls, and notifications.
+A Node.js bridge between [Vonage](https://www.vonage.com/) (formerly **Nexmo**) and [Home Assistant](https://www.home-assistant.io/) for SMS, phone calls, and notifications.
 
 - Send SMS and text-to-speech (TTS) calls from Home Assistant.
 - Route incoming SMS to HA Assist and reply by SMS.
@@ -143,3 +143,8 @@ The bridge does not retry or hang up calls automatically. Every Voice event is a
 - Logs are JSON on stdout. The image runs as a non-root user and includes a `/health` check.
 
 The source and container image are available at [GitHub](https://github.com/ebertek/vonage-ha-bridge) and [GHCR](https://github.com/ebertek/vonage-ha-bridge/pkgs/container/vonage-ha-bridge).
+
+## Alternatives
+
+- [attilaszasz/vonage-homeassistant](https://github.com/attilaszasz/vonage-homeassistant) — Home Assistant Notify integration.
+- [codefoster/core Vonage integration](https://github.com/codefoster/core/tree/codefoster/vonage/homeassistant/components/vonage) — another Home Assistant integration ([demo](https://www.youtube.com/watch?v=GPKvOXJXX3I)).
