@@ -231,6 +231,87 @@ An HTTP acknowledgment from Home Assistant confirms webhook receipt, not that an
 
 No automatic Voice retry or SMS fallback is performed; configure such behavior in Home Assistant with per-call deduplication if needed.
 
+### Call results: asynchronous and synchronous
+
+The existing `HA_CALL_EVENT_WEBHOOK_ID` receives every Voice event. Its wrapper now also
+includes a normalized `call_result` object containing `uuid`, `outcome`,
+`status`, `sip_code`, and `detail`. The original `payload` is unchanged.
+Outcomes include `pending`, `answered`, `completed`, `failed`,
+`not_answered`, and `unknown`. The `failed` and `not_answered` outcomes
+can drive asynchronous HA notifications or other automations.
+
+For `POST /api/call`, `waitForResult` is an optional boolean request field
+(default: `VOICE_WAIT_FOR_RESULT=false`). Set
+`VOICE_WAIT_FOR_RESULT=true` to wait by default, or override it in an
+individual request. `timeoutSeconds` overrides
+`VOICE_WAIT_FOR_RESULT_TIMEOUT_S` (default: `30`, accepted range: 1–120).
+When waiting, `answered` and `ringing` are **not** success. The endpoint
+waits for successful `completed` signaling or an explicit failure.
+
+- HTTP 200: the call completed successfully, with `call_result` appended
+  to the original Vonage create-call response.
+- HTTP 502: Vonage reported a failed, rejected, cancelled, busy, or unanswered
+  call, with `call_result` describing the failure and SIP status if available.
+- HTTP 504: the wait expired without a confirmed final result. The call
+  **may still be active**; the bridge does not hang up or retry it.
+- With waiting disabled, the original Vonage API response is returned immediately;
+  it means **accepted**, not delivered.
+
+The bridge buffers recent outbound callbacks to handle events that arrive before
+Vonage's create-call API response. The buffer is process-local, not durable.
+Signed Voice webhook validation is still a separate security consideration.
+
+**Home Assistant:** `rest_command` has a default HTTP timeout of 10 seconds.
+Increase the timeout in your existing `rest_command.make_call` configuration to
+at least **45 seconds** when the bridge waits up to 30 seconds.
+Home Assistant does not automatically mark a REST action as failed just because
+the HTTP response is 502 or 504. Check `response_variable.status` explicitly:
+
+```yaml
+# Within an existing Home Assistant automation/script sequence:
+- action: rest_command.make_call
+  data:
+    to: "12025550123"
+    text: "Test alert"
+    mode: talk
+  response_variable: vonage_call
+- if: "{{ vonage_call.status | int != 200 }}"
+  then:
+    - stop: "Vonage call failed or outcome is unknown"
+      error: true
+```
+
+For asynchronous notification, add an automation that listens to the
+existing Voice event webhook ID (replace the example ID if you customized it).
+A stable `notification_id` means repeated failed/completed events update
+the same notification rather than creating duplicates:
+
+```yaml
+- alias: "Vonage outbound call failure"
+  triggers:
+    - trigger: webhook
+      webhook_id: vonage_call_event
+      allowed_methods:
+        - POST
+      local_only: true
+  conditions:
+    - condition: template
+      value_template: >-
+        {% set result = trigger.json.call_result | default({}) %}
+        {{ trigger.json.provider == "vonage"
+           and result.direction == "outbound"
+           and result.outcome in ["failed", "not_answered"] }}
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: "vonage-{{ trigger.json.call_result.uuid }}"
+        title: "Vonage call not delivered"
+        message: >-
+          Status: {{ trigger.json.call_result.status }},
+          SIP: {{ trigger.json.call_result.sip_code }},
+          detail: {{ trigger.json.call_result.detail }}
+```
+
 ### Utility Endpoints
 
 | Method | Path      | Description  |
