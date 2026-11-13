@@ -12,12 +12,12 @@ A Node.js bridge between [Vonage](https://www.vonage.com/) and [Home Assistant](
 1. Create a Vonage Application with **Messages (v1)** enabled, and **Voice** if you need calls. Link your virtual number and download the application RSA private key.
 2. Configure the application webhooks using your public HTTPS hostname:
 
-   | Capability | Webhook | URL path |
-   | --- | --- | --- |
-   | Messages | Inbound | `/vonage/inbound-message` |
-   | Messages | Status | `/vonage/message-status` |
-   | Voice | Answer (GET) | `/vonage/answer` |
-   | Voice | Event (POST) | `/vonage/event` |
+   | Capability | Webhook      | URL path                  |
+   | ---------- | ------------ | ------------------------- |
+   | Messages   | Inbound      | `/vonage/inbound-message` |
+   | Messages   | Status       | `/vonage/message-status`  |
+   | Voice      | Answer (GET) | `/vonage/answer`          |
+   | Voice      | Event (POST) | `/vonage/event`           |
 
 3. Copy `.env.example` to `.env`, set the required variables, and save the private key as `private.key`.
 4. Run the container:
