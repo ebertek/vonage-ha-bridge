@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   classifyCallResult,
+  responseForCallResult,
   VoiceCallResultTracker,
 } from "../src/call-results.js";
 
@@ -173,4 +174,51 @@ test("pre-response event tracking remains bounded", () => {
     });
   }
   assert.ok(tracker.entries.size <= 2);
+});
+
+test("synchronous HTTP response distinguishes success, carrier failure and unknown", () => {
+  const accepted = { uuid, status: "started" };
+  const successful = responseForCallResult(accepted, {
+    uuid,
+    outcome: "completed",
+    status: "completed",
+  });
+  assert.equal(successful.status, 200);
+  assert.equal(successful.body.uuid, uuid);
+  assert.equal(successful.body.call_result.outcome, "completed");
+
+  const failed = responseForCallResult(accepted, {
+    uuid,
+    outcome: "failed",
+    sip_code: 500,
+  });
+  assert.equal(failed.status, 502);
+  assert.equal(failed.body.call_result.sip_code, 500);
+
+  const uncertain = responseForCallResult(accepted, {
+    uuid,
+    outcome: "unknown",
+  });
+  assert.equal(uncertain.status, 504);
+  assert.equal(uncertain.body.call_result.outcome, "unknown");
+});
+
+test("asynchronous callbacks classify ordinary successful completion", () => {
+  assert.equal(
+    classifyCallResult({
+      ...base,
+      status: "completed",
+      sip_code: 200,
+      detail: "ok",
+    }).outcome,
+    "completed",
+  );
+  assert.equal(
+    classifyCallResult({ ...base, status: "unanswered" }).outcome,
+    "not_answered",
+  );
+  assert.equal(
+    classifyCallResult({ ...base, status: "answered" }).outcome,
+    "answered",
+  );
 });
