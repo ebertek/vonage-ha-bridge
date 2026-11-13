@@ -27,7 +27,8 @@ function normalizedSipCode(value) {
  */
 export function summarizeVoiceCallEvent(payload) {
   const uuid = payload?.uuid ?? payload?.callId;
-  const conversationUuid = payload?.conversation_uuid ?? payload?.conversationId;
+  const conversationUuid =
+    payload?.conversation_uuid ?? payload?.conversationId;
   const detail = payload?.detail;
 
   return {
