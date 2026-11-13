@@ -82,13 +82,13 @@ export class VoiceCallResultTracker {
         this.entries.delete(uuid);
       }
     }
-    while (this.entries.size > this.maxEntries) {
-      const first = this.entries.keys().next().value;
-      const entry = this.entries.get(first);
-      if (entry.waiters.size > 0) {
+    for (const [uuid, entry] of this.entries) {
+      if (this.entries.size <= this.maxEntries) {
         break;
       }
-      this.entries.delete(first);
+      if (entry.waiters.size === 0) {
+        this.entries.delete(uuid);
+      }
     }
   }
 
@@ -103,6 +103,7 @@ export class VoiceCallResultTracker {
         expiresAt: Date.now() + this.retentionMs,
       };
       this.entries.set(uuid, entry);
+      this.prune();
     }
     return entry;
   }
