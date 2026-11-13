@@ -11,6 +11,7 @@ import {
 } from "./messages.js";
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
+import { formatLoggedUrl } from "./http-log.js";
 import {
   classifyVoiceCallEvent,
   summarizeVoiceCallEvent,
@@ -254,7 +255,7 @@ function validateConfig() {
 
   if (!config.redactLogs) {
     warnings.push(
-      "REDACT_LOGS=false — sensitive parameters (sig, api-key, msisdn, nonce) will appear in HTTP logs",
+      "REDACT_LOGS=false — phone numbers and message text may appear in HTTP and application logs",
     );
   }
 
@@ -396,41 +397,6 @@ validateConfig();
 const app = express();
 app.set("trust proxy", true);
 
-const REDACTED_PARAMS = new Set([
-  "sig",
-  "api-key",
-  "api_key",
-  "nonce",
-  "msisdn",
-  "api_secret",
-  "api-secret",
-  "x-api-token",
-]);
-
-function redactUrlParams(rawUrl) {
-  if (!rawUrl) {
-    return rawUrl;
-  }
-
-  try {
-    // URL constructor requires an absolute URL; use a dummy base
-    const url = new URL(rawUrl, "http://x");
-
-    for (const key of url.searchParams.keys()) {
-      if (REDACTED_PARAMS.has(key.toLowerCase())) {
-        url.searchParams.set(key, "[redacted]");
-      }
-    }
-
-    // Return only path + search, not the dummy origin; decode %5B%5D back to []
-    return (url.pathname + (url.search ?? ""))
-      .replaceAll("%5B", "[")
-      .replaceAll("%5D", "]");
-  } catch {
-    return rawUrl;
-  }
-}
-
 app.use(
   morgan(
     (tokens, request, response) =>
@@ -440,9 +406,9 @@ app.use(
         logger: "http",
         message: "HTTP request",
         method: tokens.method(request, response),
-        url: config.redactLogs
-          ? redactUrlParams(tokens.url(request, response))
-          : tokens.url(request, response),
+        url: formatLoggedUrl(tokens.url(request, response), {
+          redactLogs: config.redactLogs,
+        }),
         status: Number(tokens.status(request, response)),
         response_time_ms: Number(tokens["response-time"](request, response)),
         remote_addr: tokens["remote-addr"](request, response),
