@@ -13,6 +13,10 @@ import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
 import { formatLoggedUrl } from "./http-log.js";
 import {
+  classifyCallResult,
+  VoiceCallResultTracker,
+} from "./call-results.js";
+import {
   classifyVoiceCallEvent,
   summarizeVoiceCallEvent,
   voiceEventDeliveryKey,
@@ -109,6 +113,11 @@ const config = {
   ),
   voiceTtsLeadInMs: Number(process.env.VOICE_TTS_LEAD_IN_MS ?? "0"),
   voiceTtsLeadOutMs: Number(process.env.VOICE_TTS_LEAD_OUT_MS ?? "0"),
+  voiceWaitForResult:
+    (process.env.VOICE_WAIT_FOR_RESULT ?? "false").toLowerCase() === "true",
+  voiceWaitTimeoutSeconds: Number(
+    process.env.VOICE_WAIT_FOR_RESULT_TIMEOUT_S ?? "30",
+  ),
   validateVonageWebhookSignature:
     (process.env.VALIDATE_VONAGE_WEBHOOK_SIGNATURE ?? "true").toLowerCase() !==
     "false",
@@ -271,6 +280,20 @@ function validateConfig() {
     errors.push(
       `DEFAULT_VOICE_STYLE must be a non-negative integer: ${config.defaultVoiceStyle}`,
     );
+  }
+
+  if (
+    !["true", "false"].includes(
+      (process.env.VOICE_WAIT_FOR_RESULT ?? "false").toLowerCase(),
+    )
+  ) {
+    errors.push("VOICE_WAIT_FOR_RESULT must be true or false");
+  }
+  if (
+    !isPositiveInteger(config.voiceWaitTimeoutSeconds) ||
+    config.voiceWaitTimeoutSeconds > 120
+  ) {
+    errors.push("VOICE_WAIT_FOR_RESULT_TIMEOUT_S must be 1–120 seconds");
   }
 
   for (const [name, milliseconds] of [
@@ -1074,6 +1097,8 @@ function handleAnswer(_request, response) {
 app.get("/vonage/answer", handleAnswer);
 app.post("/vonage/answer", handleAnswer);
 
+const voiceCallResultTracker = new VoiceCallResultTracker();
+
 // Only successfully forwarded Voice events are acknowledged as delivered.
 // The cache is bounded and process-local; a restart can replay callbacks.
 const deliveredVoiceEventKeys = new Map();
@@ -1107,6 +1132,10 @@ function rememberDeliveredVoiceEvent(key) {
 
 async function handleCallEvent(request, response) {
   const payload = request.method === "GET" ? request.query : request.body;
+  // Observe first: a terminal callback can precede the create-call response,
+  // and must not depend on Home Assistant webhook forwarding availability.
+  voiceCallResultTracker.observe(payload);
+  const callResult = classifyCallResult(payload);
   const event = summarizeVoiceCallEvent(payload, {
     redactLogs: config.redactLogs,
   });
@@ -1142,6 +1171,7 @@ async function handleCallEvent(request, response) {
       provider: "vonage",
       method: request.method,
       payload,
+      call_result: callResult,
     });
     voiceEventDeliveriesInFlight.set(deliveryKey, pending);
   }
@@ -1242,12 +1272,27 @@ app.post(
         dtmfAnswer,
         dtmf_answer: dtmfAnswerAlt,
         mode,
+        waitForResult,
+        timeoutSeconds,
       } = request.body;
 
       if (!to || !text) {
         response
           .status(400)
           .json({ error: 'Fields "to" and "text" are required' });
+        return;
+      }
+
+      const shouldWait = waitForResult ?? config.voiceWaitForResult;
+      const waitSeconds = timeoutSeconds ?? config.voiceWaitTimeoutSeconds;
+      if (typeof shouldWait !== "boolean") {
+        response.status(400).json({ error: "waitForResult must be a boolean" });
+        return;
+      }
+      if (!isPositiveInteger(waitSeconds) || waitSeconds > 120) {
+        response
+          .status(400)
+          .json({ error: "timeoutSeconds must be an integer from 1 to 120" });
         return;
       }
 
@@ -1263,7 +1308,27 @@ app.post(
         mode: mode === "connect" ? "connect" : "talk",
       });
 
-      response.json(result);
+      if (!shouldWait) {
+        response.json(result);
+        return;
+      }
+
+      const callResult = await voiceCallResultTracker.wait(result.uuid, {
+        timeoutMs: waitSeconds * 1000,
+      });
+      if (callResult.outcome === "completed") {
+        response.json({ ...result, call_result: callResult });
+      } else if (callResult.outcome === "unknown") {
+        response.status(504).json({
+          error: "Call outcome not confirmed before timeout",
+          call_result: callResult,
+        });
+      } else {
+        response.status(502).json({
+          error: "Vonage call did not complete successfully",
+          call_result: callResult,
+        });
+      }
     } catch (error) {
       // Vonage rejected the request (4xx from their API)
       if (error.response?.status >= 400 && error.response?.status < 500) {
