@@ -12,6 +12,11 @@ import {
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
 import {
+  classifyVoiceCallEvent,
+  summarizeVoiceCallEvent,
+  voiceEventDeliveryKey,
+} from "./call-events.js";
+import {
   buildOutboundTalkCallPayload,
   buildTalkNcco,
   isValidVoiceTtsWaitMs,
@@ -828,6 +833,13 @@ async function createOutboundCall({
     },
   });
 
+  // A successful create-call response is acceptance, not proof of delivery.
+  logger.info("Outbound Voice call accepted by Vonage", {
+    uuid: result.data?.uuid ?? null,
+    conversation_uuid: result.data?.conversation_uuid ?? null,
+    status: result.data?.status ?? null,
+  });
+
   return result.data;
 }
 
@@ -1089,32 +1101,96 @@ function handleAnswer(_request, response) {
 app.get("/vonage/answer", handleAnswer);
 app.post("/vonage/answer", handleAnswer);
 
-async function handleCallEvent(request, response) {
-  try {
-    const payload = request.method === "GET" ? request.query : request.body;
+// Only successfully forwarded Voice events are acknowledged as delivered.
+// The cache is bounded and process-local; a restart can replay callbacks.
+const deliveredVoiceEventKeys = new Map();
+const voiceEventDeliveriesInFlight = new Map();
+const VOICE_EVENT_DEDUP_MS = 60 * 60 * 1000;
+const VOICE_EVENT_DEDUP_MAX = 5000;
 
-    if (features.haWebhooks) {
-      logger.debug("Forwarding to HA webhook", {
-        webhook_id: config.haCallEventWebhookId,
-        payload,
-      });
-      await callHaWebhook(config.haCallEventWebhookId, {
-        provider: "vonage",
-        method: request.method,
-        payload,
-      });
-    } else {
-      logger.debug(
-        "Call event received but HA webhooks not configured — skipping forwarding",
-      );
+function hasDeliveredVoiceEvent(key) {
+  const expiry = deliveredVoiceEventKeys.get(key);
+  if (expiry && expiry > Date.now()) {
+    return true;
+  }
+  if (expiry) {
+    deliveredVoiceEventKeys.delete(key);
+  }
+  return false;
+}
+
+function rememberDeliveredVoiceEvent(key) {
+  const now = Date.now();
+  for (const [existingKey, expiry] of deliveredVoiceEventKeys) {
+    if (expiry <= now) {
+      deliveredVoiceEventKeys.delete(existingKey);
     }
-  } catch (error) {
-    logger.error("Voice event handler failed", {
-      error: error.response?.data ?? error.message ?? String(error),
-    });
+  }
+  if (deliveredVoiceEventKeys.size >= VOICE_EVENT_DEDUP_MAX) {
+    deliveredVoiceEventKeys.delete(deliveredVoiceEventKeys.keys().next().value);
+  }
+  deliveredVoiceEventKeys.set(key, now + VOICE_EVENT_DEDUP_MS);
+}
+
+async function handleCallEvent(request, response) {
+  const payload = request.method === "GET" ? request.query : request.body;
+  const event = summarizeVoiceCallEvent(payload);
+  const outcome = classifyVoiceCallEvent(payload);
+  const deliveryKey = voiceEventDeliveryKey(request.method, payload);
+
+  if (features.haWebhooks && hasDeliveredVoiceEvent(deliveryKey)) {
+    response.status(200).json({ ok: true });
+    return;
   }
 
-  response.status(200).json({ ok: true });
+  if (outcome === "failed" || outcome === "webhook_error") {
+    logger.warn("Vonage Voice call failure", { ...event, outcome });
+  } else if (outcome === "not_answered") {
+    logger.info("Vonage Voice call not answered", event);
+  } else {
+    logger.debug("Vonage Voice call event received", event);
+  }
+
+  if (!features.haWebhooks) {
+    logger.debug(
+      "Call event received but HA webhooks not configured — skipping forwarding",
+    );
+    response.status(200).json({ ok: true });
+    return;
+  }
+
+  // Coalesce concurrent duplicates; a 503 prompts Vonage to retry if HA
+  // cannot accept an event. Never claim successful delivery in that case.
+  let pending = voiceEventDeliveriesInFlight.get(deliveryKey);
+  if (!pending) {
+    pending = callHaWebhook(config.haCallEventWebhookId, {
+      provider: "vonage",
+      method: request.method,
+      payload,
+    });
+    voiceEventDeliveriesInFlight.set(deliveryKey, pending);
+  }
+
+  try {
+    await pending;
+    rememberDeliveredVoiceEvent(deliveryKey);
+    response.status(200).json({ ok: true });
+  } catch (error) {
+    logger.error("Unable to forward Vonage Voice event to Home Assistant", {
+      uuid: event.uuid,
+      conversation_uuid: event.conversation_uuid,
+      status: event.status,
+      http_status: error.response?.status ?? null,
+      error_code: error.code ?? null,
+    });
+    response
+      .status(503)
+      .json({ error: "HA Voice event forwarding unavailable" });
+  } finally {
+    if (voiceEventDeliveriesInFlight.get(deliveryKey) === pending) {
+      voiceEventDeliveriesInFlight.delete(deliveryKey);
+    }
+  }
 }
 
 app.get("/vonage/event", handleCallEvent);
