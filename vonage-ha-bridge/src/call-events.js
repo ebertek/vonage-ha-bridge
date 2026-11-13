@@ -22,10 +22,10 @@ function normalizedSipCode(value) {
 }
 
 /**
- * Keep Voice call diagnostics useful without writing phone numbers, TTS text,
- * or complete third-party webhook payloads into application logs.
+ * Summarize Voice events without logging credentials or arbitrary payloads.
+ * Phone numbers and message text are included only with REDACT_LOGS=false.
  */
-export function summarizeVoiceCallEvent(payload) {
+export function summarizeVoiceCallEvent(payload, { redactLogs = true } = {}) {
   const uuid = payload?.uuid ?? payload?.callId;
   const conversationUuid =
     payload?.conversation_uuid ?? payload?.conversationId;
@@ -46,6 +46,13 @@ export function summarizeVoiceCallEvent(payload) {
       typeof detail === "string" && /^[a-z_]{1,64}$/u.test(detail)
         ? detail
         : null,
+    ...(redactLogs
+      ? {}
+      : {
+          ...(typeof payload?.from === "string" ? { from: payload.from } : {}),
+          ...(typeof payload?.to === "string" ? { to: payload.to } : {}),
+          ...(typeof payload?.text === "string" ? { text: payload.text } : {}),
+        }),
   };
 }
 
