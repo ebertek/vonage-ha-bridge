@@ -29,6 +29,10 @@ test("failed and rejected call events are recognized", () => {
     "failed",
   );
   assert.equal(
+    classifyVoiceCallEvent({ status: "completed", sip_code: "500" }),
+    "failed",
+  );
+  assert.equal(
     classifyVoiceCallEvent({
       ...failed,
       status: "completed",
