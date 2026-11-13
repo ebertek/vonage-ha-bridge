@@ -14,6 +14,7 @@ import { Agent as HttpsAgent } from "node:https";
 import { formatLoggedUrl } from "./http-log.js";
 import {
   classifyCallResult,
+  responseForCallResult,
   VoiceCallResultTracker,
 } from "./call-results.js";
 import {
@@ -1313,22 +1314,18 @@ app.post(
         return;
       }
 
+      if (typeof result.uuid !== "string" || !result.uuid) {
+        response.status(502).json({
+          error: "Vonage accepted call without returning a call UUID",
+          call_result: { outcome: "unknown", status: "missing_call_uuid" },
+        });
+        return;
+      }
       const callResult = await voiceCallResultTracker.wait(result.uuid, {
         timeoutMs: waitSeconds * 1000,
       });
-      if (callResult.outcome === "completed") {
-        response.json({ ...result, call_result: callResult });
-      } else if (callResult.outcome === "unknown") {
-        response.status(504).json({
-          error: "Call outcome not confirmed before timeout",
-          call_result: callResult,
-        });
-      } else {
-        response.status(502).json({
-          error: "Vonage call did not complete successfully",
-          call_result: callResult,
-        });
-      }
+      const final = responseForCallResult(result, callResult);
+      response.status(final.status).json(final.body);
     } catch (error) {
       // Vonage rejected the request (4xx from their API)
       if (error.response?.status >= 400 && error.response?.status < 500) {
