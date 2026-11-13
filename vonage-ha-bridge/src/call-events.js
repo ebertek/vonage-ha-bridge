@@ -50,8 +50,11 @@ export function summarizeVoiceCallEvent(payload) {
 }
 
 export function classifyVoiceCallEvent(payload) {
-  const { status, sip_code: sipCode, detail } =
-    summarizeVoiceCallEvent(payload);
+  const {
+    status,
+    sip_code: sipCode,
+    detail,
+  } = summarizeVoiceCallEvent(payload);
 
   if (
     FAILURE_STATUSES.has(status) ||
