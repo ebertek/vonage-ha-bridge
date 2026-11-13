@@ -221,7 +221,9 @@ Initiate an outbound phone call with a text-to-speech message. In `talk` mode, t
 A successful response from `POST /api/call` only means Vonage **accepted the call request**. It does not confirm that the call was answered or the spoken message was delivered.
 Check the asynchronous `/vonage/event` callbacks for statuses such as `answered`, `failed`, `rejected`, and `completed`.
 
-Voice call failures are logged at warning level with call UUID, SIP code and failure detail, without logging phone numbers or TTS content.
+Voice call failures are logged at warning level with call UUID, SIP code and failure detail.
+With `REDACT_LOGS=true` (default), phone numbers and TTS message text are omitted from Voice diagnostics.
+With `REDACT_LOGS=false`, Voice logs include available caller/destination numbers and message text, but never authentication credentials.
 All Voice events are still forwarded unchanged to the configured Home Assistant webhook.
 When Home Assistant cannot accept an event, the bridge responds with HTTP 503 so Vonage can retry rather than silently losing it.
 Successfully delivered retries are deduplicated in memory for one hour (not across process restarts).
