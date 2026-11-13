@@ -223,7 +223,7 @@ Check the asynchronous `/vonage/event` callbacks for statuses such as `answered`
 
 Voice call failures are logged at warning level with call UUID, SIP code and failure detail.
 With `REDACT_LOGS=true` (default), phone numbers and TTS message text are omitted from Voice diagnostics.
-With `REDACT_LOGS=false`, Voice logs include available caller/destination numbers and message text, but never authentication credentials.
+With `REDACT_LOGS=false`, Voice logs include available caller/destination numbers and message text; URL authentication parameters remain redacted.
 All Voice events are still forwarded unchanged to the configured Home Assistant webhook.
 When Home Assistant cannot accept an event, the bridge responds with HTTP 503 so Vonage can retry rather than silently losing it.
 Successfully delivered retries are deduplicated in memory for one hour (not across process restarts).
