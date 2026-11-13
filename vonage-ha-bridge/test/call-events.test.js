@@ -91,6 +91,27 @@ test("call-event logs omit private phone numbers and message content", () => {
   assert.equal(JSON.stringify(info).includes("Private message"), false);
 });
 
+test("REDACT_LOGS=false includes phone numbers and message text", () => {
+  const info = summarizeVoiceCallEvent(
+    { ...failed, text: "Test alert", authorization: "Bearer secret" },
+    { redactLogs: false },
+  );
+  assert.equal(info.from, failed.from);
+  assert.equal(info.to, failed.to);
+  assert.equal(info.text, "Test alert");
+  assert.equal(JSON.stringify(info).includes("Bearer secret"), false);
+});
+
+test("REDACT_LOGS=true explicitly omits personal fields", () => {
+  const info = summarizeVoiceCallEvent(
+    { ...failed, text: "Test alert" },
+    { redactLogs: true },
+  );
+  assert.equal("from" in info, false);
+  assert.equal("to" in info, false);
+  assert.equal("text" in info, false);
+});
+
 test("GET callback legacy fields and SIP string values are normalized", () => {
   assert.deepEqual(
     summarizeVoiceCallEvent({
