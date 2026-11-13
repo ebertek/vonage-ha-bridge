@@ -39,6 +39,32 @@ export function classifyCallResult(payload, { answered = false } = {}) {
 }
 
 /**
+ * HTTP errors reflect an observed call failure or an unknown outcome, not
+ * failure of the original Vonage create-call request.
+ */
+export function responseForCallResult(accepted, result) {
+  if (result.outcome === "completed") {
+    return { status: 200, body: { ...accepted, call_result: result } };
+  }
+  if (result.outcome === "unknown") {
+    return {
+      status: 504,
+      body: {
+        error: "Call outcome not confirmed before timeout",
+        call_result: result,
+      },
+    };
+  }
+  return {
+    status: 502,
+    body: {
+      error: "Vonage call did not complete successfully",
+      call_result: result,
+    },
+  };
+}
+
+/**
  * Track outbound call events even when they arrive before the API's
  * create-call HTTP response. Entries are bounded and expire after a TTL.
  * No event body or phone number is retained in this tracker.
