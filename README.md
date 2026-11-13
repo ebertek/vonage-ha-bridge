@@ -218,9 +218,14 @@ Initiate an outbound phone call with a text-to-speech message. In `talk` mode, t
 | `dtmfAnswer`/`dtmf_answer` | No       | DTMF digits to send automatically when the call is answered (only used in `connect` mode)        |
 | `mode`                     | No       | `"talk"` (default) plays TTS via answer URL; `"connect"` uses an inline NCCO with connect action |
 
-A successful response from `POST /api/call` only means Vonage **accepted the call request**. It does not confirm that the call was answered or the spoken message was delivered. Check the asynchronous `/vonage/event` callbacks for statuses such as `answered`, `failed`, `rejected`, and `completed`.
+A successful response from `POST /api/call` only means Vonage **accepted the call request**. It does not confirm that the call was answered or the spoken message was delivered.
+Check the asynchronous `/vonage/event` callbacks for statuses such as `answered`, `failed`, `rejected`, and `completed`.
 
-Voice call failures are logged at warning level with call UUID, SIP code and failure detail, without logging phone numbers or TTS content. All Voice events are still forwarded unchanged to the configured Home Assistant webhook. When Home Assistant cannot accept an event, the bridge responds with HTTP 503 so Vonage can retry rather than silently losing it. Successfully delivered retries are deduplicated in memory for one hour (not across process restarts). An HTTP acknowledgment from Home Assistant confirms webhook receipt, not that any downstream automation succeeded.
+Voice call failures are logged at warning level with call UUID, SIP code and failure detail, without logging phone numbers or TTS content.
+All Voice events are still forwarded unchanged to the configured Home Assistant webhook.
+When Home Assistant cannot accept an event, the bridge responds with HTTP 503 so Vonage can retry rather than silently losing it.
+Successfully delivered retries are deduplicated in memory for one hour (not across process restarts).
+An HTTP acknowledgment from Home Assistant confirms webhook receipt, not that any downstream automation succeeded.
 
 No automatic Voice retry or SMS fallback is performed; configure such behavior in Home Assistant with per-call deduplication if needed.
 
