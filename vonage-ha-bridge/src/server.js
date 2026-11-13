@@ -838,6 +838,13 @@ async function createOutboundCall({
     uuid: result.data?.uuid ?? null,
     conversation_uuid: result.data?.conversation_uuid ?? null,
     status: result.data?.status ?? null,
+    ...(config.redactLogs
+      ? {}
+      : {
+          from: fromNumber,
+          to: toNumber,
+          text: payload.ncco.find((action) => action.action === "talk")?.text,
+        }),
   });
 
   return result.data;
@@ -1134,7 +1141,9 @@ function rememberDeliveredVoiceEvent(key) {
 
 async function handleCallEvent(request, response) {
   const payload = request.method === "GET" ? request.query : request.body;
-  const event = summarizeVoiceCallEvent(payload);
+  const event = summarizeVoiceCallEvent(payload, {
+    redactLogs: config.redactLogs,
+  });
   const outcome = classifyVoiceCallEvent(payload);
   const deliveryKey = voiceEventDeliveryKey(request.method, payload);
 
@@ -1177,9 +1186,7 @@ async function handleCallEvent(request, response) {
     response.status(200).json({ ok: true });
   } catch (error) {
     logger.error("Unable to forward Vonage Voice event to Home Assistant", {
-      uuid: event.uuid,
-      conversation_uuid: event.conversation_uuid,
-      status: event.status,
+      ...event,
       http_status: error.response?.status ?? null,
       error_code: error.code ?? null,
     });
