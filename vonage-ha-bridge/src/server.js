@@ -27,6 +27,7 @@ import {
   buildTalkNcco,
   isValidVoiceTtsWaitMs,
 } from "./voice.js";
+import { verifyVoiceWebhook } from "./voice-webhooks.js";
 
 function normalizePhoneNumber(value) {
   let msisdn = String(value ?? "").trim();
@@ -122,6 +123,9 @@ const config = {
   validateVonageWebhookSignature:
     (process.env.VALIDATE_VONAGE_WEBHOOK_SIGNATURE ?? "true").toLowerCase() !==
     "false",
+  validateVonageVoiceWebhookSignature:
+    (process.env.VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE ?? "true")
+      .toLowerCase() !== "false",
   redactLogs: (process.env.REDACT_LOGS ?? "true").toLowerCase() !== "false",
 };
 
@@ -358,6 +362,29 @@ function validateConfig() {
   if (!config.validateVonageWebhookSignature) {
     warnings.push(
       "Messages API webhook signature verification is disabled; do not use this setting in production",
+    );
+  }
+
+  if (
+    !["true", "false"].includes(
+      (process.env.VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE ?? "true").toLowerCase(),
+    )
+  ) {
+    errors.push("VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE must be true or false");
+  }
+
+  if (
+    config.validateVonageVoiceWebhookSignature &&
+    !config.vonageSignatureSecret.trim()
+  ) {
+    errors.push(
+      "VONAGE_SIGNATURE_SECRET is required when Voice webhook verification is enabled",
+    );
+  }
+
+  if (!config.validateVonageVoiceWebhookSignature) {
+    warnings.push(
+      "Voice webhook signature verification is disabled; do not use this setting in production",
     );
   }
 
@@ -1095,8 +1122,42 @@ function handleAnswer(_request, response) {
   }
 }
 
-app.get("/vonage/answer", handleAnswer);
-app.post("/vonage/answer", handleAnswer);
+function requireVoiceWebhook(request, response, next) {
+  if (!config.validateVonageVoiceWebhookSignature) {
+    next();
+    return;
+  }
+
+  const result = verifyVoiceWebhook({
+    authorization: request.header("authorization"),
+    payload: request.method === "GET" ? request.query : request.body,
+    signatureSecret: config.vonageSignatureSecret,
+    apiKey: config.vonageApiKey,
+    applicationId: config.vonageApplicationId,
+  });
+
+  if (!result.valid) {
+    logger.warn("Rejected unsigned or invalid Voice webhook", {
+      path: request.path,
+      remote_addr: request.ip,
+      reason: result.reason,
+    });
+    // Vonage occasionally sends an unsigned callback due to a transient
+    // platform signing error; 503 allows it to retry with a signed request.
+    const missing = result.reason === "missing_authorization";
+    response.status(missing ? 503 : 401).json({
+      error: missing
+        ? "Signed Voice webhook temporarily unavailable"
+        : "Invalid Vonage Voice webhook signature",
+    });
+    return;
+  }
+
+  next();
+}
+
+app.get("/vonage/answer", requireVoiceWebhook, handleAnswer);
+app.post("/vonage/answer", requireVoiceWebhook, handleAnswer);
 
 const voiceCallResultTracker = new VoiceCallResultTracker();
 
@@ -1197,8 +1258,8 @@ async function handleCallEvent(request, response) {
   }
 }
 
-app.get("/vonage/event", handleCallEvent);
-app.post("/vonage/event", handleCallEvent);
+app.get("/vonage/event", requireVoiceWebhook, handleCallEvent);
+app.post("/vonage/event", requireVoiceWebhook, handleCallEvent);
 
 app.post(
   "/api/send-sms",
