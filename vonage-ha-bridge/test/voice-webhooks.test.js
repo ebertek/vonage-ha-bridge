@@ -114,10 +114,12 @@ test("rejects stale, future-dated, or missing issued-at timestamps", () => {
     check(payload, authorization(payload, { iat: now + 120 })).valid,
     false,
   );
-  assert.equal(
-    check(payload, authorization(payload, { iat: undefined })).valid,
-    false,
-  );
+  const claims = jwt.decode(authorization(payload).slice(7));
+  const withoutIssuedAt = jwt.sign(claims, signatureSecret, {
+    algorithm: "HS256",
+    noTimestamp: true,
+  });
+  assert.equal(check(payload, `Bearer ${withoutIssuedAt}`).valid, false);
 });
 
 test("rejects JWTs signed using the wrong algorithm", () => {
