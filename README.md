@@ -133,7 +133,7 @@ Without waiting, HTTP 200 means **Vonage accepted the request**, not that the ca
 
 The bridge does not retry or hang up calls automatically. Every Voice event is also forwarded to the HA webhook with the original `payload` and a normalized `call_result`, so automations can handle failures asynchronously.
 
-**Home Assistant:** set your `rest_command` timeout higher than the Voice wait (for example, 45 seconds for a 30-second wait). HA does not automatically fail an automation for HTTP 502/504; inspect `response_variable.status`. See [Home Assistant examples](docs/home-assistant.md) for REST commands, failure handling, and notifications.
+**Home Assistant:** set your `rest_command` timeout higher than the Voice wait (for example, 45 seconds for a 30-second wait). HA does not automatically fail an automation for HTTP 502/504; inspect `response_variable.status`. See [Home Assistant examples](docs/home-assistant.md) for REST commands, failure handling, notifications, and the Vonage account balance sensor.
 
 ## Security
 
