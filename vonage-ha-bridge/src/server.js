@@ -124,8 +124,9 @@ const config = {
     (process.env.VALIDATE_VONAGE_WEBHOOK_SIGNATURE ?? "true").toLowerCase() !==
     "false",
   validateVonageVoiceWebhookSignature:
-    (process.env.VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE ?? "true")
-      .toLowerCase() !== "false",
+    (
+      process.env.VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE ?? "true"
+    ).toLowerCase() !== "false",
   redactLogs: (process.env.REDACT_LOGS ?? "true").toLowerCase() !== "false",
 };
 
@@ -367,10 +368,14 @@ function validateConfig() {
 
   if (
     !["true", "false"].includes(
-      (process.env.VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE ?? "true").toLowerCase(),
+      (
+        process.env.VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE ?? "true"
+      ).toLowerCase(),
     )
   ) {
-    errors.push("VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE must be true or false");
+    errors.push(
+      "VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE must be true or false",
+    );
   }
 
   if (
