@@ -79,20 +79,21 @@ Set `HA_BASE_URL` and `HA_LONG_LIVED_TOKEN` together to enable HA Assist and eve
 
 ### SMS and server
 
-| Variable                                | Default | Purpose                                            |
-| --------------------------------------- | ------- | -------------------------------------------------- |
-| `ALLOWED_SMS_SENDERS`                   | all     | Comma-separated sender allowlist                   |
-| `SMS_MAX_LENGTH`                        | `1600`  | Maximum SMS text length                            |
-| `VALIDATE_VONAGE_WEBHOOK_SIGNATURE`     | `true`  | Verify signed Messages webhooks                    |
-| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`  | `5`     | SMS requests per destination per window            |
-| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_S`      | `15`    | SMS rate-limit window, seconds                     |
-| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS` | `3`     | Call requests per destination per window           |
-| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_S`     | `300`   | Call rate-limit window, seconds                    |
-| `OUTBOUND_TIMEOUT_S`                    | `10`    | Outbound HTTP timeout, seconds                     |
-| `PORT`                                  | `3000`  | HTTP listener port                                 |
-| `LOG_LEVEL`                             | `info`  | `debug`, `info`, `warning`, or `error`             |
-| `REDACT_LOGS`                           | `true`  | Hide phone numbers and message text in diagnostics |
-| `APP_VERSION`                           | `dev`   | Version label (normally supplied by the image)     |
+| Variable                                  | Default | Purpose                                            |
+| ----------------------------------------- | ------- | -------------------------------------------------- |
+| `ALLOWED_SMS_SENDERS`                     | all     | Comma-separated sender allowlist                   |
+| `SMS_MAX_LENGTH`                          | `1600`  | Maximum SMS text length                            |
+| `VALIDATE_VONAGE_WEBHOOK_SIGNATURE`       | `true`  | Verify signed Messages webhooks                    |
+| `VALIDATE_VONAGE_VOICE_WEBHOOK_SIGNATURE` | `true`  | Verify Voice Answer/Event callback JWTs            |
+| `OUTBOUND_SMS_RATE_LIMIT_MAX_REQUESTS`    | `5`     | SMS requests per destination per window            |
+| `OUTBOUND_SMS_RATE_LIMIT_WINDOW_S`        | `15`    | SMS rate-limit window, seconds                     |
+| `OUTBOUND_CALL_RATE_LIMIT_MAX_REQUESTS`   | `3`     | Call requests per destination per window           |
+| `OUTBOUND_CALL_RATE_LIMIT_WINDOW_S`       | `300`   | Call rate-limit window, seconds                    |
+| `OUTBOUND_TIMEOUT_S`                      | `10`    | Outbound HTTP timeout, seconds                     |
+| `PORT`                                    | `3000`  | HTTP listener port                                 |
+| `LOG_LEVEL`                               | `info`  | `debug`, `info`, `warning`, or `error`             |
+| `REDACT_LOGS`                             | `true`  | Hide phone numbers and message text in diagnostics |
+| `APP_VERSION`                             | `dev`   | Version label (normally supplied by the image)     |
 
 When `REDACT_LOGS=false`, diagnostic logs may include phone numbers and TTS text; URL authentication parameters remain masked. Messages webhooks should use signature verification in production.
 
@@ -139,7 +140,7 @@ The bridge does not retry or hang up calls automatically. Every Voice event is a
 
 - Keep `INTERNAL_API_TOKEN` private and restrict `/api/*` to trusted clients.
 - Messages callbacks are verified using the account signature secret and payload hash by default.
-- Voice callback signature validation is not currently implemented; restrict and monitor public Voice webhook access as appropriate.
+- Enable **Use signed webhooks** for the Voice capability in the Vonage Application; both Voice answer and event callbacks are validated by default.
 - Logs are JSON on stdout. The image runs as a non-root user and includes a `/health` check.
 
 The source and container image are available at [GitHub](https://github.com/ebertek/vonage-ha-bridge) and [GHCR](https://github.com/ebertek/vonage-ha-bridge/pkgs/container/vonage-ha-bridge).
