@@ -130,4 +130,3 @@ sensor:
 Add `vonage_api_key` and `vonage_api_secret` to your Home Assistant
 `secrets.yaml`. The example polls hourly; change `scan_interval` if needed.
 Use a separate low-balance automation if you want notifications.
-
