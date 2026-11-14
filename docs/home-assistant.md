@@ -99,3 +99,35 @@ For SMS delivery receipts, use a second webhook automation with the ID matching 
 ## Inbound SMS to Assist
 
 With HA credentials configured, incoming SMS messages from permitted senders are sent to Home Assistant Assist; the bridge sends Assist's response back via Vonage SMS. Set `ALLOWED_SMS_SENDERS` to restrict which senders can use this feature.
+
+## Vonage account balance
+
+Track the remaining Vonage credit (EUR) with a Home Assistant REST sensor.
+This uses Vonage's [Account API](https://developer.vonage.com/en/api/account) directly, not the bridge.
+It requires your **API key and API secret** for HTTP Basic authentication; the
+bridge itself does not need the API secret.
+
+Add to `configuration.yaml`:
+
+```yaml
+sensor:
+  - platform: rest
+    name: Vonage Account Balance
+    unique_id: vonage_account_balance
+    resource: "https://rest.nexmo.com/account/get-balance"
+    authentication: basic
+    username: !secret vonage_api_key
+    password: !secret vonage_api_secret
+    scan_interval: 3600
+    device_class: monetary
+    state_class: measurement
+    unit_of_measurement: "EUR"
+    json_attributes:
+      - autoReload
+    value_template: "{{ value_json.value | float | round(2) }}"
+```
+
+Add `vonage_api_key` and `vonage_api_secret` to your Home Assistant
+`secrets.yaml`. The example polls hourly; change `scan_interval` if needed.
+Use a separate low-balance automation if you want notifications.
+
