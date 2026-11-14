@@ -1,0 +1,25 @@
+---
+name: Temporary Voice Middleware Formatter
+
+on: # yamllint disable-line rule:truthy
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  formatter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+      - name: Show exact Prettier changes
+        run: |
+          npx --yes prettier@3.9.8 --write vonage-ha-bridge/src/server.js
+          git diff -- vonage-ha-bridge/src/server.js
